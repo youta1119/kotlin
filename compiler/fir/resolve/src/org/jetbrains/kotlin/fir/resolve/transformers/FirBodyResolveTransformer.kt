@@ -15,6 +15,7 @@ import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.references.FirSimpleNamedReference
 import org.jetbrains.kotlin.fir.resolve.*
 import org.jetbrains.kotlin.fir.resolve.calls.*
+import org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer
 import org.jetbrains.kotlin.fir.resolve.inference.FirCallCompleter
 import org.jetbrains.kotlin.fir.scopes.FirScope
 import org.jetbrains.kotlin.fir.scopes.addImportingScopes
@@ -22,7 +23,6 @@ import org.jetbrains.kotlin.fir.scopes.impl.FirLocalScope
 import org.jetbrains.kotlin.fir.scopes.impl.FirTopLevelDeclaredMemberScope
 import org.jetbrains.kotlin.fir.scopes.impl.withReplacedConeType
 import org.jetbrains.kotlin.fir.symbols.*
-import org.jetbrains.kotlin.fir.symbols.StandardClassIds.Int
 import org.jetbrains.kotlin.fir.types.*
 import org.jetbrains.kotlin.fir.types.impl.*
 import org.jetbrains.kotlin.fir.visitors.CompositeTransformResult
@@ -81,6 +81,7 @@ open class FirBodyResolveTransformer(
     )
 
     private val syntheticCallGenerator: FirSyntheticCallGenerator = FirSyntheticCallGenerator(this)
+    private val dataFlowAnalyzer: FirDataFlowAnalyzer = FirDataFlowAnalyzer(this)
 
     override val <D> AbstractFirBasedSymbol<D>.phasedFir: D where D : FirDeclaration, D : FirSymbolOwner<D>
         get() {
@@ -192,6 +193,7 @@ open class FirBodyResolveTransformer(
             }
             else -> error("Unknown type operator")
         }
+        dataFlowAnalyzer.exitFirNode(typeOperatorCall)
         return resolved.compose()
     }
 
@@ -236,11 +238,14 @@ open class FirBodyResolveTransformer(
         val transformedCallee = callResolver.resolveVariableAccessAndSelectCandidate(qualifiedAccessExpression, file)
         // NB: here we can get raw expression because of dropped qualifiers (see transform callee),
         // so candidate existence must be checked before calling completion
-        return if (transformedCallee is FirQualifiedAccessExpression && transformedCallee.candidate() != null) {
-            callCompleter.completeCall(transformedCallee, data as? FirTypeRef).compose()
+        val result = if (transformedCallee is FirQualifiedAccessExpression && transformedCallee.candidate() != null) {
+            callCompleter.completeCall(transformedCallee, data as? FirTypeRef)
         } else {
-            transformedCallee.compose()
-        }
+            transformedCallee
+        } as FirQualifiedAccessExpression
+        val typeWithSmartCasts = dataFlowAnalyzer.getTypeUsingSmartcastInfo(result) ?: return result.compose()
+        result.resultType = FirResolvedTypeRefImpl(result.psi, typeWithSmartCasts, result.resultType.annotations)
+        return result.compose()
     }
 
     override fun transformVariableAssignment(
@@ -415,6 +420,7 @@ open class FirBodyResolveTransformer(
 
 
     override fun transformBlock(block: FirBlock, data: Any?): CompositeTransformResult<FirStatement> {
+        dataFlowAnalyzer.enterFirNode(block)
         @Suppress("NAME_SHADOWING")
         val block = block.transformChildren(this, data) as FirBlock
         val statement = block.statements.lastOrNull()
@@ -429,7 +435,7 @@ open class FirBodyResolveTransformer(
         } else {
             (resultExpression.resultType as? FirResolvedTypeRef) ?: FirErrorTypeRefImpl(null, "No type for block")
         }
-
+        dataFlowAnalyzer.exitFirNode(block)
         return block.compose()
     }
 
@@ -448,6 +454,7 @@ open class FirBodyResolveTransformer(
             return whenExpression.compose()
         }
 
+        dataFlowAnalyzer.enterFirNode(whenExpression)
         return withScopeCleanup(localScopes) with@{
             if (whenExpression.subjectVariable != null) {
                 localScopes += FirLocalScope()
@@ -457,14 +464,23 @@ open class FirBodyResolveTransformer(
 
             @Suppress("NAME_SHADOWING")
             val whenExpression = syntheticCallGenerator.generateCalleeForWhenExpression(whenExpression) ?: run {
-                // TODO: bodies will be unresolved. Maybe run usual transform without completer?
+                dataFlowAnalyzer.exitFirNode(whenExpression)
                 return@with whenExpression.compose()
             }
 
             val expectedTypeRef = data as FirTypeRef?
             val result = callCompleter.completeCall(whenExpression, expectedTypeRef)
+            dataFlowAnalyzer.exitFirNode(whenExpression)
             result.compose()
         }
+    }
+
+    override fun transformWhenBranch(whenBranch: FirWhenBranch, data: Any?): CompositeTransformResult<FirWhenBranch> {
+        dataFlowAnalyzer.enterFirNode(whenBranch)
+        @Suppress("NAME_SHADOWING")
+        val whenBranch = whenBranch.transformCondition(this, data)
+        dataFlowAnalyzer.exitFirNode(whenBranch)
+        return whenBranch.transformResult(this, data).compose()
     }
 
     override fun transformWhenSubjectExpression(
@@ -550,6 +566,7 @@ open class FirBodyResolveTransformer(
     }
 
     override fun transformNamedFunction(namedFunction: FirNamedFunction, data: Any?): CompositeTransformResult<FirDeclaration> {
+        dataFlowAnalyzer.enterFirNode(namedFunction)
         val returnTypeRef = namedFunction.returnTypeRef
         if ((returnTypeRef !is FirImplicitTypeRef) && implicitTypeOnly) {
             return namedFunction.compose()
@@ -559,13 +576,15 @@ open class FirBodyResolveTransformer(
         }
 
         val receiverTypeRef = namedFunction.receiverTypeRef
-        return if (receiverTypeRef != null) {
+        val result = if (receiverTypeRef != null) {
             withLabelAndReceiverType(namedFunction.name, namedFunction, receiverTypeRef.coneTypeUnsafe()) {
                 transformFunctionWithGivenSignature(namedFunction, returnTypeRef, receiverTypeRef)
             }
         } else {
             transformFunctionWithGivenSignature(namedFunction, returnTypeRef)
         }
+        dataFlowAnalyzer.exitFirNode(namedFunction)
+        return result
     }
 
     override fun transformPropertyAccessor(propertyAccessor: FirPropertyAccessor, data: Any?): CompositeTransformResult<FirDeclaration> {

@@ -193,7 +193,7 @@ open class FirBodyResolveTransformer(
             }
             else -> error("Unknown type operator")
         }
-        dataFlowAnalyzer.exitFirNode(typeOperatorCall)
+        dataFlowAnalyzer.exitTypeOperatorCall(typeOperatorCall)
         return resolved.compose()
     }
 
@@ -420,7 +420,7 @@ open class FirBodyResolveTransformer(
 
 
     override fun transformBlock(block: FirBlock, data: Any?): CompositeTransformResult<FirStatement> {
-        dataFlowAnalyzer.enterFirNode(block)
+        dataFlowAnalyzer.enterBlock(block)
         @Suppress("NAME_SHADOWING")
         val block = block.transformChildren(this, data) as FirBlock
         val statement = block.statements.lastOrNull()
@@ -435,13 +435,13 @@ open class FirBodyResolveTransformer(
         } else {
             (resultExpression.resultType as? FirResolvedTypeRef) ?: FirErrorTypeRefImpl(null, "No type for block")
         }
-        dataFlowAnalyzer.exitFirNode(block)
+        dataFlowAnalyzer.exitBlock(block)
         return block.compose()
     }
 
     override fun <E : FirTargetElement> transformJump(jump: FirJump<E>, data: Any?): CompositeTransformResult<FirStatement> {
         val result = super.transformJump(jump, data)
-        dataFlowAnalyzer.exitFirNode(jump)
+        dataFlowAnalyzer.exitJump(jump)
         return result
     }
 
@@ -460,7 +460,7 @@ open class FirBodyResolveTransformer(
             return whenExpression.compose()
         }
 
-        dataFlowAnalyzer.enterFirNode(whenExpression)
+        dataFlowAnalyzer.enterWhenExpression(whenExpression)
         return withScopeCleanup(localScopes) with@{
             if (whenExpression.subjectVariable != null) {
                 localScopes += FirLocalScope()
@@ -470,23 +470,22 @@ open class FirBodyResolveTransformer(
 
             @Suppress("NAME_SHADOWING")
             val whenExpression = syntheticCallGenerator.generateCalleeForWhenExpression(whenExpression) ?: run {
-                dataFlowAnalyzer.exitFirNode(whenExpression)
+                dataFlowAnalyzer.exitWhenExpression(whenExpression)
                 return@with whenExpression.compose()
             }
 
             val expectedTypeRef = data as FirTypeRef?
             val result = callCompleter.completeCall(whenExpression, expectedTypeRef)
-            dataFlowAnalyzer.exitFirNode(whenExpression)
+            dataFlowAnalyzer.exitWhenExpression(result)
             result.compose()
         }
     }
 
     override fun transformWhenBranch(whenBranch: FirWhenBranch, data: Any?): CompositeTransformResult<FirWhenBranch> {
-        dataFlowAnalyzer.enterFirNode(whenBranch)
-        @Suppress("NAME_SHADOWING")
-        val whenBranch = whenBranch.transformCondition(this, data)
-        dataFlowAnalyzer.exitFirNode(whenBranch)
-        return whenBranch.transformResult(this, data).compose()
+        return whenBranch.also { dataFlowAnalyzer.enterWhenBranch(whenBranch) }
+            .transformCondition(this, data).also { dataFlowAnalyzer.exitWhenBranchCondition(it) }
+            .transformResult(this, data).also { dataFlowAnalyzer.exitWhenBranchResult(it) }
+            .compose()
     }
 
     override fun transformWhenSubjectExpression(
@@ -572,7 +571,7 @@ open class FirBodyResolveTransformer(
     }
 
     override fun transformNamedFunction(namedFunction: FirNamedFunction, data: Any?): CompositeTransformResult<FirDeclaration> {
-        dataFlowAnalyzer.enterFirNode(namedFunction)
+        dataFlowAnalyzer.enterNamedFunction(namedFunction)
         val returnTypeRef = namedFunction.returnTypeRef
         if ((returnTypeRef !is FirImplicitTypeRef) && implicitTypeOnly) {
             return namedFunction.compose()
@@ -589,7 +588,7 @@ open class FirBodyResolveTransformer(
         } else {
             transformFunctionWithGivenSignature(namedFunction, returnTypeRef)
         }
-        dataFlowAnalyzer.exitFirNode(namedFunction)
+        dataFlowAnalyzer.exitNamedFunction(namedFunction)
         return result
     }
 

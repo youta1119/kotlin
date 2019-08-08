@@ -7,7 +7,7 @@ package org.jetbrains.kotlin.fir.resolve.dfa.cfg
 
 import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.expressions.*
-import org.jetbrains.kotlin.fir.resolve.dfa.DataFlowInfoMap
+import org.jetbrains.kotlin.fir.resolve.dfa.Condition
 
 class ControlFlowGraph {
     val nodes = mutableListOf<CFGNode>()
@@ -31,18 +31,20 @@ class WhenExitNode(owner: ControlFlowGraph, val whenExpression: FirWhenExpressio
 class WhenConditionBranchNode(owner: ControlFlowGraph, val condition: FirWhenBranch) : CFGNode(owner)
 class VariableAccessNode(owner: ControlFlowGraph, val qualifiedAccess: FirQualifiedAccessExpression) : CFGNode(owner)
 class TypeOperatorCallNode(owner: ControlFlowGraph, val typeOperatorCall: FirTypeOperatorCall) : CFGNode(owner)
-class ConditionExitNode(owner: ControlFlowGraph, val whenBranch: FirWhenBranch, val outDataFlowInfo: DataFlowInfoMap) : CFGNode(owner)
+class ConditionExitNode(owner: ControlFlowGraph, val whenBranch: FirWhenBranch, val condition: Condition) : CFGNode(owner)
 class JumpNode(owner: ControlFlowGraph, val firJump: FirJump<*>) : CFGNode(owner)
 class BlockEnterNode(owner: ControlFlowGraph, val block: FirBlock) : CFGNode(owner)
 class BlockExitNode(owner: ControlFlowGraph, val block: FirBlock) : CFGNode(owner)
+class WhenBranchResultExitNode(owner: ControlFlowGraph, val whenBranch: FirWhenBranch) : CFGNode(owner)
+
 
 // -----------------------------------------------------------------
 
 fun ControlFlowGraph.createTypeOperatorCallNode(typeOperatorCall: FirTypeOperatorCall): TypeOperatorCallNode =
     TypeOperatorCallNode(this, typeOperatorCall).also(this::init)
 
-fun ControlFlowGraph.createConditionExitNode(whenBranch: FirWhenBranch, outDataFlowInfo: DataFlowInfoMap): ConditionExitNode =
-    ConditionExitNode(this, whenBranch, outDataFlowInfo).also(this::init)
+fun ControlFlowGraph.createConditionExitNode(whenBranch: FirWhenBranch, condition: Condition): ConditionExitNode =
+    ConditionExitNode(this, whenBranch, condition).also(this::init)
 
 fun ControlFlowGraph.createJumpNode(firJump: FirJump<*>): JumpNode = JumpNode(this, firJump).also(this::init)
 
@@ -71,3 +73,6 @@ fun ControlFlowGraph.createWhenNode(whenExpression: FirWhenExpression): WhenNode
 
 fun ControlFlowGraph.createWhenExitNode(whenExpression: FirWhenExpression): WhenExitNode =
     WhenExitNode(this, whenExpression).also(this::init)
+
+fun ControlFlowGraph.createWhenBranchResultExitNode(whenBranch: FirWhenBranch): WhenBranchResultExitNode =
+    WhenBranchResultExitNode(this, whenBranch).also(this::init)

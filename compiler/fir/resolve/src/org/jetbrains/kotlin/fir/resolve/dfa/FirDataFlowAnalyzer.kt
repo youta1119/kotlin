@@ -7,148 +7,184 @@ package org.jetbrains.kotlin.fir.resolve.dfa
 
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirResolvedCallableReference
-import org.jetbrains.kotlin.fir.FirTargetElement
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
 import org.jetbrains.kotlin.fir.symbols.ConeSymbol
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.types.*
-import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
-import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
-
-typealias DataFlowInfoMap = MutableMap<ConeSymbol, FirDataFlowInfo>
-
-data class FirDataFlowInfo(
-    val exactTypes: MutableList<ConeKotlinType> = mutableListOf(),
-    val exactNotTypes: MutableList<ConeKotlinType> = mutableListOf()
-)
 
 class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveComponents by transformer {
     private val context: ConeTypeContext get() = inferenceComponents.ctx as ConeTypeContext
+    private val factSystem: FactSystem = FactSystem(context)
 
-    private var graph = ControlFlowGraph()
+    private lateinit var graph: ControlFlowGraph
 
     private val lexicalScopes: Stack<Stack<CFGNode>> = Stack()
     private val lastNodes: Stack<CFGNode> get() = lexicalScopes.top()
     private val whenExitNodes: Stack<WhenExitNode> = Stack()
     private val blockExitNodes: Stack<BlockExitNode> = Stack()
+    private val whenConditionExitNodes: Stack<ConditionExitNode> = Stack()
+
     private val modes: Stack<Mode> = Stack()
     private val mode: Mode get() = modes.top()
 
-    private val enterVisitor = EnterVisitor()
-    private val exitVisitor = ExitVisitor()
+    private val variableStorage = DataFlowVariableStorage()
+    private val edges = mutableMapOf<CFGNode, Facts>().withDefault { Facts.EMPTY }
+    private val outputEdges = mutableMapOf<CFGNode, Facts>()
 
-    private val edgesMap = mutableMapOf<CFGNode, MutableMap<ConeSymbol, FirDataFlowInfo>>().withDefault { mutableMapOf() }
-
-    fun enterFirNode(element: FirElement) = element.accept(enterVisitor)
-    fun exitFirNode(element: FirElement) = element.accept(exitVisitor)
+    private val conditionVariables: Stack<DataFlowVariable> = Stack()
 
     fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
         val lastNode = lastNodes.top()
-        val symbol = (qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol ?: return null
-        val dfi = edgesMap[lastNode]?.get(symbol) ?: return null
+        val fir = (((qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol) as? FirBasedSymbol<*>)?.fir ?: return null
+        val types = factSystem.squashExactTypes(lastNode.facts[fir]).takeIf { it.isNotEmpty() } ?: return null
         val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
-        val types = dfi.exactTypes.takeIf { it.isNotEmpty() } ?: return null
         return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, types)
     }
 
-    private inner class EnterVisitor : FirVisitorVoid() {
-        override fun visitElement(element: FirElement) {
-            throw IllegalStateException()
-        }
+    private operator fun Facts.get(fir: FirElement): Collection<FirDataFlowInfo> =
+        variableStorage[fir]?.let { this[it] } ?: emptyList()
 
-        override fun visitNamedFunction(namedFunction: FirNamedFunction) {
-            lexicalScopes.push(Stack(graph.createStartNode(namedFunction)))
-            graph.createExitNode(namedFunction)
-            modes.push(Mode.NoMode)
-        }
+    private operator fun Facts.get(variable: DataFlowVariable): Collection<FirDataFlowInfo> =
+        verifiedInfos.map { it.dataFlowInfo }.filter { it.variable == variable }
 
-        override fun visitWhenExpression(whenExpression: FirWhenExpression) {
-            addNewSimpleNode(graph.createWhenNode(whenExpression))
-            whenExitNodes.push(graph.createWhenExitNode(whenExpression))
-            modes.push(Mode.When)
-        }
+    // ----------------------------------- Named function -----------------------------------
 
-        override fun visitWhenBranch(whenBranch: FirWhenBranch) {
-            addNewSimpleNodeWithoutExtractingFromStack(graph.createConditionNode(whenBranch))
-            modes.push(Mode.Condition)
-        }
-
-        override fun visitBlock(block: FirBlock) {
-            val enterBlockNode = graph.createEnterBlockNode(block)
-            val lastNode = lastNodes.top()
-            addEdge(lastNode, enterBlockNode)
-            if (lastNode is ConditionExitNode) {
-                enterBlockNode.incomingInfo = lastNode.outDataFlowInfo
-            }
-            lexicalScopes.push(Stack(enterBlockNode))
-            blockExitNodes.push(graph.createExitBlockNode(block))
+    fun enterNamedFunction(namedFunction: FirNamedFunction) {
+        variableStorage.reset()
+        graph = ControlFlowGraph()
+        lexicalScopes.push(Stack(graph.createStartNode(namedFunction)))
+        graph.createExitNode(namedFunction)
+        modes.push(Mode.NoMode)
+        for (valueParameter in namedFunction.valueParameters) {
+            variableStorage.createNewRealVariable(valueParameter)
         }
     }
 
-    private inner class ExitVisitor : FirVisitorVoid() {
-        override fun visitElement(element: FirElement) {
-            throw IllegalStateException()
+    fun exitNamedFunction(namedFunction: FirNamedFunction) {
+        lastNodes.pop()
+        modes.pop()
+    }
+
+    // ----------------------------------- Block -----------------------------------
+
+    fun enterBlock(block: FirBlock) {
+        val enterBlockNode = graph.createEnterBlockNode(block)
+        val lastNode = lastNodes.top()
+        val edgeFromCondition = lastNode is ConditionExitNode
+        addEdge(lastNode, enterBlockNode, addInfo = !edgeFromCondition)
+        if (edgeFromCondition) {
+            val trueCondition = (lastNode as ConditionExitNode).condition
+            enterBlockNode.facts = factSystem.verifyFacts(lastNode.facts, trueCondition, lexicalScopes.size)
+        }
+        lexicalScopes.push(Stack(enterBlockNode))
+        blockExitNodes.push(graph.createExitBlockNode(block))
+    }
+
+    fun exitBlock(block: FirBlock) {
+        if (lastNodes.isEmpty) {
+            lexicalScopes.pop()
+            return
         }
 
-        override fun visitNamedFunction(namedFunction: FirNamedFunction) {
-            lastNodes.pop()
-            modes.pop()
-        }
+        val blockExitNode = blockExitNodes.pop()
+        val lastNode = lastNodes.pop()
+        addEdge(lastNode, blockExitNode, addInfo = false)
 
-        override fun visitWhenExpression(whenExpression: FirWhenExpression) {
-            val whenExitNode = whenExitNodes.pop()
-            intersectIncomingData(whenExitNode)
-            lastNodes.push(whenExitNode)
-            modes.pop()
-        }
+        intersectFactsFromPreviousNodes(blockExitNode)
 
-        override fun visitWhenBranch(whenBranch: FirWhenBranch) {
-            modes.pop()
-            val lastConditionNode = lastNodes.pop()
-            val dfi = lastConditionNode.incomingInfo
+        lexicalScopes.pop()
 
-            addNewSimpleNode(graph.createConditionExitNode(whenBranch, dfi))
-        }
-
-        override fun visitBlock(block: FirBlock) {
-            if (lastNodes.isEmpty) {
-                lexicalScopes.pop()
+        val nextNode = when (mode) {
+            Mode.NoMode -> graph.exitNode
+            Mode.When -> {
+                lastNodes.push(blockExitNode)
                 return
             }
-
-            val blockExitNode = blockExitNodes.pop()
-            addEdge(lastNodes.pop(), blockExitNode)
-            lexicalScopes.pop()
-
-            val nextNode = when (mode) {
-                Mode.NoMode -> graph.exitNode
-                Mode.When -> whenExitNodes.top()
-                Mode.Condition -> TODO()
-            }
-            addEdge(blockExitNode, nextNode)
+            Mode.Condition -> TODO()
         }
+        addEdge(blockExitNode, nextNode)
+    }
 
-        override fun visitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {
-            val node = graph.createTypeOperatorCallNode(typeOperatorCall)
-            addNewSimpleNode(node)
-            if (mode != Mode.Condition) return
-            if (typeOperatorCall.operation == FirOperation.IS) {
-                val symbol = typeOperatorCall.argument.toResolvedCallableSymbol() ?: return
-                val type = typeOperatorCall.conversionTypeRef.coneTypeSafe<ConeKotlinType>() ?: return
-                val dataFlowInfoMap = node.incomingInfo
-                val dataFlowInfo = dataFlowInfoMap[symbol] ?: FirDataFlowInfo().also { dataFlowInfoMap[symbol] = it }
-                dataFlowInfo.exactTypes += type
-            }
-        }
+    // ----------------------------------- Type operator call -----------------------------------
 
-        override fun <E : FirTargetElement> visitJump(jump: FirJump<E>) {
-            addNewSimpleNode(graph.createJumpNode(jump))
-            addEdge(lastNodes.pop(), graph.exitNode)
+    fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {
+        val node = graph.createTypeOperatorCallNode(typeOperatorCall)
+        addNewSimpleNode(node)
+        if (typeOperatorCall.operation == FirOperation.IS) {
+            val symbol = typeOperatorCall.argument.toResolvedCallableSymbol() as? FirBasedSymbol<*> ?: return
+            val type = typeOperatorCall.conversionTypeRef.coneTypeSafe<ConeKotlinType>() ?: return
+
+            val variable = variableStorage[symbol.fir] ?: return
+            val conditionalVariable = conditionVariables.top()
+            val info = UnverifiedInfo(
+                BooleanCondition(conditionalVariable, true),
+                FirDataFlowInfo(variable, setOf(type), emptySet())
+            )
+            outputEdges[node] = node.facts + info
         }
     }
+
+    // ----------------------------------- Jump -----------------------------------
+
+    fun exitJump(jump: FirJump<*>) {
+        addNewSimpleNode(graph.createJumpNode(jump))
+        addEdge(lastNodes.pop(), graph.exitNode)
+    }
+
+    // ----------------------------------- When -----------------------------------
+
+    fun enterWhenExpression(whenExpression: FirWhenExpression) {
+        addNewSimpleNode(graph.createWhenNode(whenExpression))
+        whenExitNodes.push(graph.createWhenExitNode(whenExpression))
+        modes.push(Mode.When)
+    }
+
+    fun enterWhenBranch(whenBranch: FirWhenBranch) {
+        addNewSimpleNodeWithoutExtractingFromStack(graph.createConditionNode(whenBranch))
+        conditionVariables.push(variableStorage.createNewSyntheticVariable(whenBranch.condition))
+        modes.push(Mode.Condition)
+    }
+
+    fun exitWhenBranchCondition(whenBranch: FirWhenBranch) {
+        modes.pop()
+
+        val conditionVariable = conditionVariables.pop()
+        val trueCondition = BooleanCondition(conditionVariable, true)
+
+        val node = graph.createConditionExitNode(whenBranch, trueCondition)
+        addNewSimpleNode(node)
+        whenConditionExitNodes.push(node)
+    }
+
+    fun exitWhenBranchResult(whenBranch: FirWhenBranch) {
+        val conditionExitNode = whenConditionExitNodes.pop()
+        if (lastNodes.top() !is BlockExitNode) return
+        val whenExitNode = whenExitNodes.top()
+        val lastResultNode = lastNodes.pop()
+        val resultExitNode = graph.createWhenBranchResultExitNode(whenBranch)
+
+        val factsBeforeResult = conditionExitNode.facts
+        val factsFromResult = lastResultNode.facts
+        val newVerifiedInfos = factsFromResult.verifiedInfos - factsBeforeResult.verifiedInfos
+        val newUnverifiedInfos = newVerifiedInfos.map { UnverifiedInfo(conditionExitNode.condition, it.dataFlowInfo) }
+        addEdge(lastResultNode, resultExitNode, addInfo = false)
+        addEdge(resultExitNode, whenExitNode, addInfo = false)
+        val facts = factsBeforeResult + newUnverifiedInfos + factsFromResult.unverifiedInfos
+        resultExitNode.facts = facts
+    }
+
+    fun exitWhenExpression(whenExpression: FirWhenExpression) {
+        val whenExitNode = whenExitNodes.pop()
+        intersectFactsFromPreviousNodes(whenExitNode)
+        lastNodes.push(whenExitNode)
+        modes.pop()
+    }
+
+    // -------------------------------------------------------------------------------------------------------------------------
 
     private fun addNewSimpleNodeWithoutExtractingFromStack(node: CFGNode): CFGNode {
         return connectNodes(lastNodes.top(), node)
@@ -164,69 +200,28 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         return connectNodes(lastNodes.pop(), node)
     }
 
-    private fun addEdge(from: CFGNode, to: CFGNode) {
+    private fun addEdge(from: CFGNode, to: CFGNode, addInfo: Boolean = true) {
         from.followingNodes += to
         to.previousNodes += from
-        to.incomingInfo = from.incomingInfo
+        if (addInfo) to.facts = outputEdges[from] ?: from.facts
     }
 
-    private fun intersectIncomingData(node: CFGNode) {
-        edgesMap[node] = node.previousNodes.singleOrNull()?.incomingInfo
-            ?: node.previousNodes.map { it.incomingInfo }
-                .reduce { a, b -> a.or(b) }
+    private fun intersectFactsFromPreviousNodes(node: CFGNode) {
+        node.facts = factSystem.foldFacts(node.previousNodes.map { outputEdges[it] ?: it.facts })
     }
 
-    private infix fun FirDataFlowInfo.or(other: FirDataFlowInfo): FirDataFlowInfo {
-        fun intersectTypes(types: List<ConeKotlinType>) = ConeTypeIntersector.intersectTypes(context, types)
-
-        fun calculateTypes(a: List<ConeKotlinType>, b: List<ConeKotlinType>): MutableList<ConeKotlinType> =
-            if (a.isEmpty() || b.isEmpty()) {
-                mutableListOf()
-            } else {
-                val commonSuperType = with(NewCommonSuperTypeCalculator) {
-                    with(inferenceComponents.ctx) {
-                        commonSuperType(listOf(intersectTypes(exactTypes), intersectTypes(b)))
-                    }
-                } as ConeKotlinType
-
-                if (commonSuperType is ConeIntersectionType) commonSuperType.intersectedTypes.toMutableList()
-                else mutableListOf(commonSuperType)
-            }
-
-        val exactTypes = calculateTypes(this.exactTypes, other.exactTypes)
-        val exactNotTypes = calculateTypes(this.exactNotTypes, other.exactNotTypes)
-        return FirDataFlowInfo(exactTypes, exactNotTypes)
-    }
-
-    fun DataFlowInfoMap.or(other: DataFlowInfoMap): DataFlowInfoMap {
-        if (this.isEmpty() || other.isEmpty()) return mutableMapOf()
-        val keys = this.keys.intersect(other.keys)
-        return keys.associateByTo(mutableMapOf(), { it }) {
-            val a = this[it]!!
-            val b = other[it]!!
-            a.or(b)
-        }
-    }
-
-    private var CFGNode.incomingInfo: DataFlowInfoMap
-        get() = edgesMap.getValue(this)
+    private var CFGNode.facts: Facts
+        get() = edges.getValue(this)
         set(value) {
-            edgesMap[this] = value.toMutableMap()
+            edges[this] = value
         }
+
+    private val CFGNode.verifiedInfos: Collection<VerifiedInfo>
+        get() = facts.verifiedInfos
+
+    private val CFGNode.previousFacts: List<Facts> get() = previousNodes.map { it.facts }
 }
 
 enum class Mode {
     NoMode, When, Condition
-}
-
-class Stack<T>(vararg values: T) {
-    private val stack = mutableListOf(*values)
-
-    fun top(): T = stack[stack.size - 1]
-    fun pop(): T = stack.removeAt(stack.size - 1)
-    fun push(value: T) = stack.add(value)
-
-    val isEmpty: Boolean get() = stack.isEmpty()
-
-    val size: Int get() = stack.size
 }

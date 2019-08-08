@@ -439,6 +439,12 @@ open class FirBodyResolveTransformer(
         return block.compose()
     }
 
+    override fun <E : FirTargetElement> transformJump(jump: FirJump<E>, data: Any?): CompositeTransformResult<FirStatement> {
+        val result = super.transformJump(jump, data)
+        dataFlowAnalyzer.exitFirNode(jump)
+        return result
+    }
+
     @Deprecated("should be removed after try/when completion")
     private fun commonSuperType(types: List<FirTypeRef>): FirTypeRef? {
         val commonSuperType = with(NewCommonSuperTypeCalculator) {

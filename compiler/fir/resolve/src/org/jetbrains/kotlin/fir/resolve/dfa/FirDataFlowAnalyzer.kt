@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.fir.resolve.dfa
 
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirResolvedCallableReference
+import org.jetbrains.kotlin.fir.FirTargetElement
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
@@ -50,12 +51,13 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         val dfi = edgesMap[lastNode]?.get(symbol) ?: return null
         val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
         val types = dfi.exactTypes.takeIf { it.isNotEmpty() } ?: return null
-        // TODO: каст на контексте мне не нравится
         return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, types)
     }
 
     private inner class EnterVisitor : FirVisitorVoid() {
-        override fun visitElement(element: FirElement) {}
+        override fun visitElement(element: FirElement) {
+            throw IllegalStateException()
+        }
 
         override fun visitNamedFunction(namedFunction: FirNamedFunction) {
             lexicalScopes.push(Stack(graph.createStartNode(namedFunction)))
@@ -87,7 +89,9 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     }
 
     private inner class ExitVisitor : FirVisitorVoid() {
-        override fun visitElement(element: FirElement) {}
+        override fun visitElement(element: FirElement) {
+            throw IllegalStateException()
+        }
 
         override fun visitNamedFunction(namedFunction: FirNamedFunction) {
             lastNodes.pop()
@@ -110,6 +114,11 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         }
 
         override fun visitBlock(block: FirBlock) {
+            if (lastNodes.isEmpty) {
+                lexicalScopes.pop()
+                return
+            }
+
             val blockExitNode = blockExitNodes.pop()
             addEdge(lastNodes.pop(), blockExitNode)
             lexicalScopes.pop()
@@ -134,6 +143,11 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
                 dataFlowInfo.exactTypes += type
             }
         }
+
+        override fun <E : FirTargetElement> visitJump(jump: FirJump<E>) {
+            addNewSimpleNode(graph.createJumpNode(jump))
+            addEdge(lastNodes.pop(), graph.exitNode)
+        }
     }
 
     private fun addNewSimpleNodeWithoutExtractingFromStack(node: CFGNode): CFGNode {
@@ -152,12 +166,12 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
 
     private fun addEdge(from: CFGNode, to: CFGNode) {
         from.followingNodes += to
-        to.previousNodes += to
+        to.previousNodes += from
         to.incomingInfo = from.incomingInfo
     }
 
     private fun intersectIncomingData(node: CFGNode) {
-        edgesMap[node] = node.previousNodes.firstOrNull()?.incomingInfo
+        edgesMap[node] = node.previousNodes.singleOrNull()?.incomingInfo
             ?: node.previousNodes.map { it.incomingInfo }
                 .reduce { a, b -> a.or(b) }
     }
@@ -211,6 +225,8 @@ class Stack<T>(vararg values: T) {
     fun top(): T = stack[stack.size - 1]
     fun pop(): T = stack.removeAt(stack.size - 1)
     fun push(value: T) = stack.add(value)
+
+    val isEmpty: Boolean get() = stack.isEmpty()
 
     val size: Int get() = stack.size
 }

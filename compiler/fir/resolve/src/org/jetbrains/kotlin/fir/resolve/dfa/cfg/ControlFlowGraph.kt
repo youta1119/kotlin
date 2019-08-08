@@ -31,28 +31,23 @@ class WhenExitNode(owner: ControlFlowGraph, val whenExpression: FirWhenExpressio
 class WhenConditionBranchNode(owner: ControlFlowGraph, val condition: FirWhenBranch) : CFGNode(owner)
 class VariableAccessNode(owner: ControlFlowGraph, val qualifiedAccess: FirQualifiedAccessExpression) : CFGNode(owner)
 class TypeOperatorCallNode(owner: ControlFlowGraph, val typeOperatorCall: FirTypeOperatorCall) : CFGNode(owner)
+class ConditionExitNode(owner: ControlFlowGraph, val whenBranch: FirWhenBranch, val outDataFlowInfo: DataFlowInfoMap) : CFGNode(owner)
+class JumpNode(owner: ControlFlowGraph, val firJump: FirJump<*>) : CFGNode(owner)
+class BlockEnterNode(owner: ControlFlowGraph, val block: FirBlock) : CFGNode(owner)
+class BlockExitNode(owner: ControlFlowGraph, val block: FirBlock) : CFGNode(owner)
+
+// -----------------------------------------------------------------
 
 fun ControlFlowGraph.createTypeOperatorCallNode(typeOperatorCall: FirTypeOperatorCall): TypeOperatorCallNode =
     TypeOperatorCallNode(this, typeOperatorCall).also(this::init)
 
-class ConditionExitNode(owner: ControlFlowGraph, val whenBranch: FirWhenBranch, val outDataFlowInfo: DataFlowInfoMap) : CFGNode(owner)
-
 fun ControlFlowGraph.createConditionExitNode(whenBranch: FirWhenBranch, outDataFlowInfo: DataFlowInfoMap): ConditionExitNode =
     ConditionExitNode(this, whenBranch, outDataFlowInfo).also(this::init)
 
-
-class FunctionCallNode(owner: ControlFlowGraph) : CFGNode(owner)
-
-
-class VariableAssigmentNode(owner: ControlFlowGraph) : CFGNode(owner)
-class FunctionDeclarationNode(owner: ControlFlowGraph) : CFGNode(owner)
-class JumpNode(owner: ControlFlowGraph) : CFGNode(owner)
-class BlockEnterNode(owner: ControlFlowGraph, val block: FirBlock) : CFGNode(owner)
-class BlockExitNode(owner: ControlFlowGraph, val block: FirBlock) : CFGNode(owner)
+fun ControlFlowGraph.createJumpNode(firJump: FirJump<*>): JumpNode = JumpNode(this, firJump).also(this::init)
 
 fun ControlFlowGraph.createVariableAccessNode(qualifiedAccess: FirQualifiedAccessExpression): VariableAccessNode =
     VariableAccessNode(this, qualifiedAccess).also(this::init)
-
 
 fun ControlFlowGraph.createEnterBlockNode(block: FirBlock): BlockEnterNode = BlockEnterNode(this, block).also(this::init)
 
@@ -76,8 +71,3 @@ fun ControlFlowGraph.createWhenNode(whenExpression: FirWhenExpression): WhenNode
 
 fun ControlFlowGraph.createWhenExitNode(whenExpression: FirWhenExpression): WhenExitNode =
     WhenExitNode(this, whenExpression).also(this::init)
-
-/*
- * val x = a.foo()
- *
- */

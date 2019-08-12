@@ -482,7 +482,7 @@ open class FirBodyResolveTransformer(
     }
 
     override fun transformWhenBranch(whenBranch: FirWhenBranch, data: Any?): CompositeTransformResult<FirWhenBranch> {
-        return whenBranch.also { dataFlowAnalyzer.enterWhenBranch(whenBranch) }
+        return whenBranch.also { dataFlowAnalyzer.enterWhenBranchCondition(whenBranch) }
             .transformCondition(this, data).also { dataFlowAnalyzer.exitWhenBranchCondition(it) }
             .transformResult(this, data).also { dataFlowAnalyzer.exitWhenBranchResult(it) }
             .compose()
@@ -753,6 +753,20 @@ open class FirBodyResolveTransformer(
                 emptyList()
             )
         return transformedGetClassCall.compose()
+    }
+
+    override fun transformWhileLoop(whileLoop: FirWhileLoop, data: Any?): CompositeTransformResult<FirStatement> {
+        return whileLoop.also(dataFlowAnalyzer::enterWhileLoop)
+            .transformCondition(this, data).also(dataFlowAnalyzer::exitWhileLoopCondition)
+            .transformBlock(this, data).also(dataFlowAnalyzer::exitWhileLoop)
+            .transformRestChildren(this, data).compose()
+    }
+
+    override fun transformDoWhileLoop(doWhileLoop: FirDoWhileLoop, data: Any?): CompositeTransformResult<FirStatement> {
+        return doWhileLoop.also(dataFlowAnalyzer::enterDoWhileLoop)
+            .transformBlock(this, data).also(dataFlowAnalyzer::enterDoWhileLoopCondition)
+            .transformCondition(this, data).also(dataFlowAnalyzer::exitDoWhileLoop)
+            .transformRestChildren(this, data).compose()
     }
 
     // ----------------------- Util functions -----------------------

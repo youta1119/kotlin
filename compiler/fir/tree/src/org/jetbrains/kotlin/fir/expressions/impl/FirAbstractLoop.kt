@@ -10,6 +10,7 @@ import org.jetbrains.kotlin.fir.*
 import org.jetbrains.kotlin.fir.expressions.FirBlock
 import org.jetbrains.kotlin.fir.expressions.FirExpression
 import org.jetbrains.kotlin.fir.expressions.FirLoop
+import org.jetbrains.kotlin.fir.visitors.CompositeTransformResult
 import org.jetbrains.kotlin.fir.visitors.FirTransformer
 import org.jetbrains.kotlin.fir.visitors.FirVisitor
 
@@ -27,9 +28,23 @@ abstract class FirAbstractLoop(
     }
 
     override fun <D> transformChildren(transformer: FirTransformer<D>, data: D): FirElement {
+        return transformCondition(transformer, data)
+            .transformBlock(transformer, data)
+            .transformRestChildren(transformer, data)
+    }
+
+    override fun <D> transformCondition(transformer: FirTransformer<D>, data: D): FirAbstractLoop {
         condition = condition.transformSingle(transformer, data)
+        return this
+    }
+
+    override fun <D> transformBlock(transformer: FirTransformer<D>, data: D): FirAbstractLoop {
         block = block.transformSingle(transformer, data)
+        return this
+    }
+
+    override fun <D> transformRestChildren(transformer: FirTransformer<D>, data: D): FirAbstractLoop {
         label = label?.transformSingle(transformer, data)
-        return super<FirAnnotatedStatement>.transformChildren(transformer, data)
+        return super<FirAnnotatedStatement>.transformChildren(transformer, data) as FirAbstractLoop
     }
 }

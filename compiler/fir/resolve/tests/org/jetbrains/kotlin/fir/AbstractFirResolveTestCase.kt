@@ -46,8 +46,7 @@ abstract class AbstractFirResolveTestCase : AbstractFirResolveWithSessionTestCas
         }
     }
 
-
-    fun doTest(path: String) {
+    protected fun processInputFile(path: String): List<FirFile> {
         val file = File(path)
 
         val allFiles = listOf(file) + file.parentFile.listFiles { sibling ->
@@ -66,8 +65,11 @@ abstract class AbstractFirResolveTestCase : AbstractFirResolveWithSessionTestCas
                     KotlinTestUtils.createFile(name, text, project)
                 }
 
-        val firFiles = doCreateAndProcessFir(ktFiles)
+        return doCreateAndProcessFir(ktFiles)
+    }
 
+    open fun doTest(path: String) {
+        val firFiles = processInputFile(path)
         val firFileDump = StringBuilder().also { firFiles.first().accept(FirRenderer(it), null) }.toString()
         val expectedPath = path.replace(".kt", ".txt")
         KotlinTestUtils.assertEqualsToFile(File(expectedPath), firFileDump)

@@ -1,0 +1,45 @@
+ 0: Enter function "testWhile" -> 1
+ 1:   Enter block -> 2
+ 2:     Enter whileloop -> 3
+ 3:       Enter loop condition -> 4
+ 4:       Exit loop condition -> 5, 10
+ 5:       Enter loop block -> 6
+ 6:         Enter block -> 7
+ 7:           Type operator: "x is String" -> 8
+ 8:         Exit block -> 9
+ 9:       Exit loop block -> 3
+10:     Exit whileloop -> 11
+11:     Type operator: "x is String" -> 12
+12:   Exit block -> 13
+13: Exit function "testWhile" ->
+
+ 0: Enter function "testDoWhile" -> 1
+ 1:   Enter block -> 2
+ 2:     Enter do-whileloop -> 3
+ 3:       Enter loop block -> 4
+ 4:         Enter block -> 5
+ 5:           Type operator: "x is String" -> 6
+ 6:         Exit block -> 7
+ 7:       Exit loop block -> 8
+ 8:       Enter loop condition -> 9
+ 9:       Exit loop condition -> 3, 10
+10:     Exit do-whileloop -> 11
+11:     Type operator: "x is String" -> 12
+12:   Exit block -> 13
+13: Exit function "testDoWhile" ->
+
+ 0: Enter function "testFor" -> 1
+ 1:   Enter block -> 2
+ 2:     Enter whileloop -> 3
+ 3:       Enter loop condition -> 4
+ 4:       Exit loop condition -> 5, 10
+ 5:       Enter loop block -> 6
+ 6:         Enter block -> 7
+ 7:           Type operator: "x is String" -> 8
+ 8:         Exit block -> 9
+ 9:       Exit loop block -> 3
+10:     Exit whileloop -> 11
+11:     Type operator: "x is String" -> 12
+12:   Exit block -> 13
+13: Exit function "testFor" ->
+

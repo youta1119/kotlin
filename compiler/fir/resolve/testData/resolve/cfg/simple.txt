@@ -1,0 +1,10 @@
+0: Enter function "foo" -> 1
+1:   Enter block -> 2
+2:   Exit block -> 3
+3: Exit function "foo" ->
+
+0: Enter function "test" -> 1
+1:   Enter block -> 2
+2:   Exit block -> 3
+3: Exit function "test" ->
+

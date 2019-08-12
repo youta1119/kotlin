@@ -82,12 +82,12 @@ fun ControlFlowGraph.createEnterBlockNode(fir: FirBlock): BlockEnterNode = Block
 fun ControlFlowGraph.createBlockExitNode(fir: FirBlock): BlockExitNode = BlockExitNode(this, fir).also(this::init)
 
 
-fun ControlFlowGraph.createStartNode(fir: FirFunction): FunctionEnterNode = FunctionEnterNode(this, fir).also {
+fun ControlFlowGraph.createFunctionEnterNode(fir: FirFunction): FunctionEnterNode = FunctionEnterNode(this, fir).also {
     init(it)
     enterNode = it
 }
 
-fun ControlFlowGraph.createExitNode(fir: FirFunction): FunctionExitNode = FunctionExitNode(this, fir).also {
+fun ControlFlowGraph.createFunctionExitNode(fir: FirFunction): FunctionExitNode = FunctionExitNode(this, fir).also {
     init(it)
     exitNode = it
 }

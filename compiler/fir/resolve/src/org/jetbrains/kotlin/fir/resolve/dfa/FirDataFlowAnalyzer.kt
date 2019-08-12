@@ -59,19 +59,19 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     fun enterNamedFunction(namedFunction: FirNamedFunction) {
         variableStorage.reset()
         graphs.push(ControlFlowGraph())
-        lexicalScopes.push(stackOf(graph.createStartNode(namedFunction)))
-        graph.createExitNode(namedFunction)
+        lexicalScopes.push(stackOf(graph.createFunctionEnterNode(namedFunction)))
+        functionExitNodes.push(graph.createFunctionExitNode(namedFunction))
 
         for (valueParameter in namedFunction.valueParameters) {
             variableStorage.createNewRealVariable(valueParameter)
         }
     }
 
-    fun exitNamedFunction(namedFunction: FirNamedFunction) {
+    fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
         lastNodes.pop()
-        functionExitNodes.pop()
-        // TODO: link graph to fir function
-        val functionGraph = graphs.pop()
+        val exitNode = functionExitNodes.pop()
+        assert(exitNode.fir == namedFunction)
+        return graphs.pop()
     }
 
     // ----------------------------------- Block -----------------------------------
@@ -140,6 +140,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
 
     fun enterWhenBranchCondition(whenBranch: FirWhenBranch) {
         addNewSimpleNode(graph.createWhenBranchConditionEnterNode(whenBranch))
+
         conditionVariables.push(variableStorage.createNewSyntheticVariable(whenBranch.condition))
     }
 
@@ -148,7 +149,9 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         val trueCondition = BooleanCondition(conditionVariable, true)
 
         val node = graph.createWhenBranchConditionExitNode(whenBranch, trueCondition)
-        addNewSimpleNodeWithoutExtractingFromStack(node)
+        addNewSimpleNode(node)
+        // put exit branch condition node twice so we can refer it after exit from when expression
+        lastNodes.push(node)
     }
 
     fun exitWhenBranchResult(whenBranch: FirWhenBranch) {

@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.fir.declarations.FirResolvePhase
 import org.jetbrains.kotlin.fir.declarations.FirValueParameter
 import org.jetbrains.kotlin.fir.expressions.FirAnnotationCall
 import org.jetbrains.kotlin.fir.expressions.FirBlock
+import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
 import org.jetbrains.kotlin.fir.visitors.FirVisitor
 
 class FirErrorFunction(
@@ -34,4 +35,6 @@ class FirErrorFunction(
 
     override fun <R, D> accept(visitor: FirVisitor<R, D>, data: D): R =
         super<FirFunction>.accept(visitor, data)
+
+    override val cfgReference: FirControlFlowGraphReference? get() = null
 }

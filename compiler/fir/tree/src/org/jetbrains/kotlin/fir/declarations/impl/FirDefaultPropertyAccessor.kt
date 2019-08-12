@@ -14,10 +14,9 @@ import org.jetbrains.kotlin.fir.declarations.FirResolvePhase
 import org.jetbrains.kotlin.fir.declarations.FirValueParameter
 import org.jetbrains.kotlin.fir.expressions.FirAnnotationCall
 import org.jetbrains.kotlin.fir.expressions.FirBlock
+import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
 import org.jetbrains.kotlin.fir.symbols.CallableId
 import org.jetbrains.kotlin.fir.symbols.impl.FirVariableSymbol
-import org.jetbrains.kotlin.fir.transformInplace
-import org.jetbrains.kotlin.fir.transformSingle
 import org.jetbrains.kotlin.fir.types.FirTypeRef
 import org.jetbrains.kotlin.fir.types.impl.FirImplicitUnitTypeRef
 import org.jetbrains.kotlin.fir.visitors.FirTransformer
@@ -41,6 +40,8 @@ abstract class FirDefaultPropertyAccessor(
         get() = emptyList()
 
     abstract override var returnTypeRef: FirTypeRef
+
+    final override val cfgReference: FirControlFlowGraphReference? get() = null
 
     override fun <D> transformReturnTypeRef(transformer: FirTransformer<D>, data: D) {
         returnTypeRef = returnTypeRef.transformSingle(transformer, data)

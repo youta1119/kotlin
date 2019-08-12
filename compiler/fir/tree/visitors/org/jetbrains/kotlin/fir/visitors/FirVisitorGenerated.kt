@@ -6,9 +6,12 @@ package org.jetbrains.kotlin.fir.visitors
 
 import org.jetbrains.kotlin.fir.*
 import org.jetbrains.kotlin.fir.declarations.*
-import org.jetbrains.kotlin.fir.declarations.impl.*
+import org.jetbrains.kotlin.fir.declarations.impl.FirDefaultPropertyAccessor
+import org.jetbrains.kotlin.fir.declarations.impl.FirModifiableClass
+import org.jetbrains.kotlin.fir.declarations.impl.FirModifiableFunction
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.expressions.impl.*
+import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
 import org.jetbrains.kotlin.fir.types.*
 
 
@@ -154,6 +157,10 @@ abstract class FirVisitor<out R, in D> {
 
     open fun visitReference(reference: FirReference, data: D): R {
         return visitElement(reference, data)
+    }
+
+    open fun visitControlFlowGraphReference(controlFlowGraphReference: FirControlFlowGraphReference, data: D): R {
+        return visitReference(controlFlowGraphReference, data)
     }
 
     open fun visitNamedReference(namedReference: FirNamedReference, data: D): R {

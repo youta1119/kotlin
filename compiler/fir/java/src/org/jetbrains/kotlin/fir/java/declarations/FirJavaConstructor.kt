@@ -16,6 +16,7 @@ import org.jetbrains.kotlin.fir.declarations.impl.FirAbstractCallableMember
 import org.jetbrains.kotlin.fir.declarations.impl.FirConstructorImpl.Companion.NAME
 import org.jetbrains.kotlin.fir.expressions.FirBlock
 import org.jetbrains.kotlin.fir.expressions.FirDelegatedConstructorCall
+import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
 import org.jetbrains.kotlin.fir.symbols.impl.FirConstructorSymbol
 import org.jetbrains.kotlin.fir.types.FirTypeRef
 
@@ -49,6 +50,8 @@ class FirJavaConstructor(
 
     override val body: FirBlock?
         get() = null
+
+    override val cfgReference: FirControlFlowGraphReference? get() = null
 
     override val valueParameters = mutableListOf<FirValueParameter>()
 }

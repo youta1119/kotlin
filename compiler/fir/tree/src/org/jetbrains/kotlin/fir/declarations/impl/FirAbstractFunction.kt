@@ -11,9 +11,12 @@ import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirValueParameter
 import org.jetbrains.kotlin.fir.expressions.FirBlock
+import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
+import org.jetbrains.kotlin.fir.references.FirEmptyControlFlowGraphReference
 import org.jetbrains.kotlin.fir.transformInplace
 import org.jetbrains.kotlin.fir.transformSingle
 import org.jetbrains.kotlin.fir.visitors.FirTransformer
+import org.jetbrains.kotlin.fir.visitors.FirVisitor
 
 abstract class FirAbstractFunction(
     session: FirSession,
@@ -23,9 +26,17 @@ abstract class FirAbstractFunction(
 
     final override var body: FirBlock? = null
 
+    final override var cfgReference: FirControlFlowGraphReference = FirEmptyControlFlowGraphReference()
+
+    override fun <R, D> acceptChildren(visitor: FirVisitor<R, D>, data: D) {
+        super<FirAbstractAnnotatedDeclaration>.acceptChildren(visitor, data)
+        cfgReference.accept(visitor, data)
+    }
+
     override fun <D> transformChildren(transformer: FirTransformer<D>, data: D): FirElement {
         valueParameters.transformInplace(transformer, data)
         body = body?.transformSingle(transformer, data)
+        cfgReference = cfgReference.transformSingle(transformer, data)
 
         return super<FirAbstractAnnotatedDeclaration>.transformChildren(transformer, data)
     }

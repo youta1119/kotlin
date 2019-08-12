@@ -34,6 +34,7 @@ class FirAnonymousFunctionImpl(
         label = label?.transformSingle(transformer, data)
         valueParameters.transformInplace(transformer, data)
         body = body?.transformSingle(transformer, data)
+        cfgReference = cfgReference.transformSingle(transformer, data)
 
         return super<FirAnonymousFunction>.transformChildren(transformer, data)
     }

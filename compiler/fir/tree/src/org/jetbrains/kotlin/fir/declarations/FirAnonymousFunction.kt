@@ -10,6 +10,8 @@ import org.jetbrains.kotlin.fir.FirLabeledElement
 import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.VisitedSupertype
 import org.jetbrains.kotlin.fir.expressions.impl.FirUnknownTypeExpression
+import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
+import org.jetbrains.kotlin.fir.references.FirEmptyControlFlowGraphReference
 import org.jetbrains.kotlin.fir.types.FirTypeRef
 import org.jetbrains.kotlin.fir.visitors.FirVisitor
 
@@ -18,6 +20,8 @@ abstract class FirAnonymousFunction(
     psi: PsiElement?
 ) : @VisitedSupertype FirFunction, FirUnknownTypeExpression(psi), FirTypedDeclaration, FirLabeledElement {
     abstract val receiverTypeRef: FirTypeRef?
+
+    final override var cfgReference: FirControlFlowGraphReference = FirEmptyControlFlowGraphReference()
 
     override fun <R, D> accept(visitor: FirVisitor<R, D>, data: D): R =
         visitor.visitAnonymousFunction(this, data)
@@ -31,6 +35,7 @@ abstract class FirAnonymousFunction(
         }
         body?.accept(visitor, data)
         typeRef.accept(visitor, data)
+        cfgReference.accept(visitor, data)
         // Don't call super<FirExpression>.acceptChildren (annotations & typeRef are already processed)
     }
 }

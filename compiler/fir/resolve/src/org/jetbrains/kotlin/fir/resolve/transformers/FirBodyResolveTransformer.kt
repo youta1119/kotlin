@@ -82,6 +82,7 @@ open class FirBodyResolveTransformer(
 
     private val syntheticCallGenerator: FirSyntheticCallGenerator = FirSyntheticCallGenerator(this)
     private val dataFlowAnalyzer: FirDataFlowAnalyzer = FirDataFlowAnalyzer(this)
+    private val controlFlowGraphReferenceTransformer = ControlFlowGraphReferenceTransformer()
 
     override val <D> AbstractFirBasedSymbol<D>.phasedFir: D where D : FirDeclaration, D : FirSymbolOwner<D>
         get() {
@@ -588,8 +589,8 @@ open class FirBodyResolveTransformer(
         } else {
             transformFunctionWithGivenSignature(namedFunction, returnTypeRef)
         }
-        dataFlowAnalyzer.exitNamedFunction(namedFunction)
-        return result
+        val controlFlowGraph = dataFlowAnalyzer.exitNamedFunction(namedFunction)
+        return result.single.transform(controlFlowGraphReferenceTransformer, controlFlowGraph)
     }
 
     override fun transformPropertyAccessor(propertyAccessor: FirPropertyAccessor, data: Any?): CompositeTransformResult<FirDeclaration> {

@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.fir.declarations.FirPropertyAccessor
 import org.jetbrains.kotlin.fir.transformSingle
 import org.jetbrains.kotlin.fir.types.FirTypeRef
 import org.jetbrains.kotlin.fir.visitors.FirTransformer
+import org.jetbrains.kotlin.fir.visitors.FirVisitor
 
 class FirPropertyAccessorImpl(
     session: FirSession,
@@ -33,5 +34,10 @@ class FirPropertyAccessorImpl(
 
     override fun <D> transformReturnTypeRef(transformer: FirTransformer<D>, data: D) {
         returnTypeRef = returnTypeRef.transformSingle(transformer, data)
+    }
+
+    override fun <R, D> acceptChildren(visitor: FirVisitor<R, D>, data: D) {
+        super<FirAbstractFunction>.acceptChildren(visitor, data)
+        super<FirPropertyAccessor>.acceptChildren(visitor, data)
     }
 }

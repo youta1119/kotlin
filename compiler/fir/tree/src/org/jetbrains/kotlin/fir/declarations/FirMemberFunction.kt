@@ -25,5 +25,6 @@ interface FirMemberFunction<F : FirMemberFunction<F>> :
             parameter.accept(visitor, data)
         }
         body?.accept(visitor, data)
+        cfgReference?.accept(visitor, data)
     }
 }

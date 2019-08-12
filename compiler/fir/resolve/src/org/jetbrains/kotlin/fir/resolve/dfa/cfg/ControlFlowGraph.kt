@@ -17,7 +17,7 @@ class ControlFlowGraph {
     lateinit var exitNode: FunctionExitNode
 }
 
-abstract class CFGNode<E : FirElement>(val owner: ControlFlowGraph) {
+sealed class CFGNode<E : FirElement>(val owner: ControlFlowGraph) {
     val previousNodes = mutableListOf<CFGNode<*>>()
     val followingNodes = mutableListOf<CFGNode<*>>()
 
@@ -77,7 +77,7 @@ fun ControlFlowGraph.createJumpNode(fir: FirJump<*>): JumpNode = JumpNode(this, 
 fun ControlFlowGraph.createVariableAccessNode(fir: FirQualifiedAccessExpression): VariableAccessNode =
     VariableAccessNode(this, fir).also(this::init)
 
-fun ControlFlowGraph.createEnterBlockNode(fir: FirBlock): BlockEnterNode = BlockEnterNode(this, fir).also(this::init)
+fun ControlFlowGraph.createBlockEnterNode(fir: FirBlock): BlockEnterNode = BlockEnterNode(this, fir).also(this::init)
 
 fun ControlFlowGraph.createBlockExitNode(fir: FirBlock): BlockExitNode = BlockExitNode(this, fir).also(this::init)
 

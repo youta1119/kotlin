@@ -22,10 +22,18 @@ sealed class CFGNode<E : FirElement>(val owner: ControlFlowGraph) {
     val followingNodes = mutableListOf<CFGNode<*>>()
 
     abstract val fir: E
+    var isDead: Boolean = false
 }
+
+val CFGNode<*>.usefullFollowingNodes: List<CFGNode<*>> get() = followingNodes.filterNot { it.isDead }
+val CFGNode<*>.usefullPreviousNodes: List<CFGNode<*>> get() = followingNodes.filterNot { it.isDead }
 
 private fun ControlFlowGraph.init(node: CFGNode<*>) {
     nodes += node
+}
+
+interface ReturnableNothingNode {
+    val returnsNothing: Boolean
 }
 
 class FunctionEnterNode(owner: ControlFlowGraph, override val fir: FirFunction) : CFGNode<FirFunction>(owner)
@@ -37,7 +45,9 @@ class BlockExitNode(owner: ControlFlowGraph, override val fir: FirBlock) : CFGNo
 class WhenEnterNode(owner: ControlFlowGraph, override val fir: FirWhenExpression) : CFGNode<FirWhenExpression>(owner)
 class WhenExitNode(owner: ControlFlowGraph, override val fir: FirWhenExpression) : CFGNode<FirWhenExpression>(owner)
 class WhenBranchConditionEnterNode(owner: ControlFlowGraph, override val fir: FirWhenBranch) : CFGNode<FirWhenBranch>(owner)
-class WhenBranchConditionExitNode(owner: ControlFlowGraph, override val fir: FirWhenBranch, val condition: Condition) : CFGNode<FirWhenBranch>(owner)
+class WhenBranchConditionExitNode(owner: ControlFlowGraph, override val fir: FirWhenBranch, val condition: Condition) :
+    CFGNode<FirWhenBranch>(owner)
+
 class WhenBranchResultExitNode(owner: ControlFlowGraph, override val fir: FirWhenBranch) : CFGNode<FirWhenBranch>(owner)
 
 class LoopEnterNode(owner: ControlFlowGraph, override val fir: FirLoop) : CFGNode<FirLoop>(owner)
@@ -47,11 +57,38 @@ class LoopConditionEnterNode(owner: ControlFlowGraph, override val fir: FirLoop)
 class LoopConditionExitNode(owner: ControlFlowGraph, override val fir: FirLoop) : CFGNode<FirLoop>(owner)
 class LoopExitNode(owner: ControlFlowGraph, override val fir: FirLoop) : CFGNode<FirLoop>(owner)
 
-class VariableAccessNode(owner: ControlFlowGraph, override val fir: FirQualifiedAccessExpression) : CFGNode<FirQualifiedAccessExpression>(owner)
 class TypeOperatorCallNode(owner: ControlFlowGraph, override val fir: FirTypeOperatorCall) : CFGNode<FirTypeOperatorCall>(owner)
 class JumpNode(owner: ControlFlowGraph, override val fir: FirJump<*>) : CFGNode<FirJump<*>>(owner)
+class ConstExpressionNode(owner: ControlFlowGraph, override val fir: FirConstExpression<*>) : CFGNode<FirConstExpression<*>>(owner)
+class VariableDeclarationNode(owner: ControlFlowGraph, override val fir: FirVariable<*>) : CFGNode<FirVariable<*>>(owner)
+class VariableAssignmentNode(owner: ControlFlowGraph, override val fir: FirVariableAssignment) : CFGNode<FirVariableAssignment>(owner)
+
+class QualifiedAccessNode(
+    owner: ControlFlowGraph,
+    override val fir: FirQualifiedAccessExpression,
+    override val returnsNothing: Boolean
+) : CFGNode<FirQualifiedAccessExpression>(owner), ReturnableNothingNode
+
+class FunctionCallNode(
+    owner: ControlFlowGraph,
+    override val fir: FirFunctionCall,
+    override val returnsNothing: Boolean
+) : CFGNode<FirFunctionCall>(owner), ReturnableNothingNode
+
+class ThrowExceptionNode(
+    owner: ControlFlowGraph,
+    override val fir: FirThrowExpression
+) : CFGNode<FirThrowExpression>(owner), ReturnableNothingNode {
+    override val returnsNothing: Boolean get() = true
+}
+
+fun ControlFlowGraph.createThrowExceptionNode(fir: FirThrowExpression): ThrowExceptionNode = ThrowExceptionNode(this, fir).also(this::init)
 
 class StubNode(owner: ControlFlowGraph) : CFGNode<FirStub>(owner) {
+    init {
+        isDead = true
+    }
+
     override val fir: FirStub get() = FirStub
 }
 
@@ -61,7 +98,7 @@ object FirStub : FirElement {
 
 // -----------------------------------------------------------------
 
-fun ControlFlowGraph.createStubNode() : StubNode = StubNode(this).also(this::init)
+fun ControlFlowGraph.createStubNode(): StubNode = StubNode(this).also(this::init)
 
 fun ControlFlowGraph.createLoopExitNode(loop: FirLoop): LoopExitNode = LoopExitNode(this, loop).also(this::init)
 fun ControlFlowGraph.createLoopEnterNode(loop: FirLoop): LoopEnterNode = LoopEnterNode(this, loop).also(this::init)
@@ -74,8 +111,8 @@ fun ControlFlowGraph.createWhenBranchConditionExitNode(fir: FirWhenBranch, condi
 
 fun ControlFlowGraph.createJumpNode(fir: FirJump<*>): JumpNode = JumpNode(this, fir).also(this::init)
 
-fun ControlFlowGraph.createVariableAccessNode(fir: FirQualifiedAccessExpression): VariableAccessNode =
-    VariableAccessNode(this, fir).also(this::init)
+fun ControlFlowGraph.createQualifiedAccessNode(fir: FirQualifiedAccessExpression, returnsNothing: Boolean): QualifiedAccessNode =
+    QualifiedAccessNode(this, fir, returnsNothing).also(this::init)
 
 fun ControlFlowGraph.createBlockEnterNode(fir: FirBlock): BlockEnterNode = BlockEnterNode(this, fir).also(this::init)
 
@@ -107,3 +144,12 @@ fun ControlFlowGraph.createLoopConditionExitNode(fir: FirLoop): LoopConditionExi
 fun ControlFlowGraph.createLoopConditionEnterNode(fir: FirLoop): LoopConditionEnterNode = LoopConditionEnterNode(this, fir).also(this::init)
 fun ControlFlowGraph.createLoopBlockEnterNode(fir: FirLoop): LoopBlockEnterNode = LoopBlockEnterNode(this, fir).also(this::init)
 fun ControlFlowGraph.createLoopBlockExitNode(fir: FirLoop): LoopBlockExitNode = LoopBlockExitNode(this, fir).also(this::init)
+fun ControlFlowGraph.createFunctionCallNode(fir: FirFunctionCall, returnsNothing: Boolean): FunctionCallNode = FunctionCallNode(this, fir, returnsNothing).also(this::init)
+fun ControlFlowGraph.createVariableAssignmentNode(fir: FirVariableAssignment): VariableAssignmentNode =
+    VariableAssignmentNode(this, fir).also(this::init)
+
+fun ControlFlowGraph.createVariableDeclarationNode(fir: FirVariable<*>): VariableDeclarationNode =
+    VariableDeclarationNode(this, fir).also(this::init)
+
+fun ControlFlowGraph.createConstExpressionNode(fir: FirConstExpression<*>): ConstExpressionNode =
+    ConstExpressionNode(this, fir).also(this::init)

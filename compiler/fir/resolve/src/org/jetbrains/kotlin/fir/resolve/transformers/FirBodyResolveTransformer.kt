@@ -32,7 +32,6 @@ import org.jetbrains.kotlin.ir.expressions.IrConstKind
 import org.jetbrains.kotlin.name.ClassId
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
 import org.jetbrains.kotlin.types.model.KotlinTypeMarker
 import org.jetbrains.kotlin.types.model.SimpleTypeMarker
 import org.jetbrains.kotlin.types.model.TypeConstructorMarker
@@ -203,13 +202,13 @@ open class FirBodyResolveTransformer(
         data: Any?
     ): CompositeTransformResult<FirStatement> {
 
-        when (val callee = qualifiedAccessExpression.calleeReference) {
+        val result = when (val callee = qualifiedAccessExpression.calleeReference) {
             is FirThisReference -> {
                 val labelName = callee.labelName
                 val types = if (labelName == null) labels.values() else labels[Name.identifier(labelName)]
                 val type = types.lastOrNull() ?: ConeKotlinErrorType("Unresolved this@$labelName")
                 qualifiedAccessExpression.resultType = FirResolvedTypeRefImpl(null, type, emptyList())
-                return qualifiedAccessExpression.compose()
+                qualifiedAccessExpression
             }
             is FirSuperReference -> {
                 if (callee.superTypeRef is FirResolvedTypeRef) {
@@ -221,31 +220,35 @@ open class FirBodyResolveTransformer(
                     qualifiedAccessExpression.resultType = superTypeRef
                     callee.replaceSuperTypeRef(superTypeRef)
                 }
-                return qualifiedAccessExpression.compose()
+                qualifiedAccessExpression
             }
             is FirDelegateFieldReference -> {
                 val delegateFieldSymbol = callee.coneSymbol
                 qualifiedAccessExpression.resultType = delegateFieldSymbol.delegate.typeRef
-                return qualifiedAccessExpression.compose()
+                qualifiedAccessExpression
             }
             is FirResolvedCallableReference -> {
                 if (qualifiedAccessExpression.typeRef !is FirResolvedTypeRef) {
                     storeTypeFromCallee(qualifiedAccessExpression)
                 }
-                return qualifiedAccessExpression.compose()
+                qualifiedAccessExpression
+            }
+            else -> {
+                val transformedCallee = callResolver.resolveVariableAccessAndSelectCandidate(qualifiedAccessExpression, file)
+                // NB: here we can get raw expression because of dropped qualifiers (see transform callee),
+                // so candidate existence must be checked before calling completion
+                val result = if (transformedCallee is FirQualifiedAccessExpression && transformedCallee.candidate() != null) {
+                    callCompleter.completeCall(transformedCallee, data as? FirTypeRef)
+                } else {
+                    transformedCallee
+                }
+                if (result !is FirQualifiedAccessExpression) return result.compose()
+                val typeWithSmartCasts = dataFlowAnalyzer.getTypeUsingSmartcastInfo(result) ?: return result.compose()
+                result.resultType = FirResolvedTypeRefImpl(result.psi, typeWithSmartCasts, result.resultType.annotations)
+                result
             }
         }
-
-        val transformedCallee = callResolver.resolveVariableAccessAndSelectCandidate(qualifiedAccessExpression, file)
-        // NB: here we can get raw expression because of dropped qualifiers (see transform callee),
-        // so candidate existence must be checked before calling completion
-        val result = if (transformedCallee is FirQualifiedAccessExpression && transformedCallee.candidate() != null) {
-            callCompleter.completeCall(transformedCallee, data as? FirTypeRef)
-        } else {
-            transformedCallee
-        } as FirQualifiedAccessExpression
-        val typeWithSmartCasts = dataFlowAnalyzer.getTypeUsingSmartcastInfo(result) ?: return result.compose()
-        result.resultType = FirResolvedTypeRefImpl(result.psi, typeWithSmartCasts, result.resultType.annotations)
+        dataFlowAnalyzer.exitQualifiedAccessExpression(result)
         return result.compose()
     }
 
@@ -255,14 +258,16 @@ open class FirBodyResolveTransformer(
     ): CompositeTransformResult<FirStatement> {
         // val resolvedAssignment = transformCallee(variableAssignment)
         val resolvedAssignment = callResolver.resolveVariableAccessAndSelectCandidate(variableAssignment, file)
-        return if (resolvedAssignment is FirVariableAssignment) {
+        val result = if (resolvedAssignment is FirVariableAssignment) {
             val completeAssignment = callCompleter.completeCall(resolvedAssignment, noExpectedType)
             val expectedType = typeFromCallee(completeAssignment)
-            completeAssignment.transformRValue(this, expectedType).compose()
+            completeAssignment.transformRValue(this, expectedType)
         } else {
             // This can happen in erroneous code only
-            resolvedAssignment.compose()
+            resolvedAssignment
         }
+        dataFlowAnalyzer.exitVariableAssignment(result as FirVariableAssignment)
+        return result.compose()
     }
 
     override fun transformAnonymousFunction(anonymousFunction: FirAnonymousFunction, data: Any?): CompositeTransformResult<FirDeclaration> {
@@ -389,6 +394,7 @@ open class FirBodyResolveTransformer(
     }
 
     override fun transformFunctionCall(functionCall: FirFunctionCall, data: Any?): CompositeTransformResult<FirStatement> {
+        dataFlowAnalyzer.enterFunctionCall(functionCall)
         if (functionCall.calleeReference is FirResolvedCallableReference && functionCall.resultType is FirImplicitTypeRef) {
             storeTypeFromCallee(functionCall)
         }
@@ -408,7 +414,7 @@ open class FirBodyResolveTransformer(
                 throw RuntimeException("While resolving call ${functionCall.render()}", e)
             }
 
-
+        dataFlowAnalyzer.exitFunctionCall(functionCall)
         return completeInference.compose()
 
     }
@@ -446,14 +452,10 @@ open class FirBodyResolveTransformer(
         return result
     }
 
-    @Deprecated("should be removed after try/when completion")
-    private fun commonSuperType(types: List<FirTypeRef>): FirTypeRef? {
-        val commonSuperType = with(NewCommonSuperTypeCalculator) {
-            with(inferenceComponents.ctx) {
-                commonSuperType(types.map { it.coneTypeUnsafe() })
-            }
-        } as ConeKotlinType
-        return FirResolvedTypeRefImpl(null, commonSuperType, emptyList())
+    override fun transformThrowExpression(throwExpression: FirThrowExpression, data: Any?): CompositeTransformResult<FirStatement> {
+        return super.transformThrowExpression(throwExpression, data).also {
+            dataFlowAnalyzer.exitThrowExceptionNode(it.single as FirThrowExpression)
+        }
     }
 
     override fun transformWhenExpression(whenExpression: FirWhenExpression, data: Any?): CompositeTransformResult<FirStatement> {
@@ -529,7 +531,9 @@ open class FirBodyResolveTransformer(
         }
 
 
-        return super.transformConstExpression(constExpression, data)
+        return super.transformConstExpression(constExpression, data).also {
+            dataFlowAnalyzer.exitConstExpresion(it.single as FirConstExpression<*>)
+        }
     }
 
     override fun transformDeclaration(declaration: FirDeclaration, data: Any?): CompositeTransformResult<FirDeclaration> {
@@ -688,6 +692,7 @@ open class FirBodyResolveTransformer(
             localScopes.lastOrNull()?.storeDeclaration(variable)
         }
         variable.resolvePhase = transformerPhase
+        dataFlowAnalyzer.exitVariableDeclaration(variable)
         return variable.compose()
     }
 

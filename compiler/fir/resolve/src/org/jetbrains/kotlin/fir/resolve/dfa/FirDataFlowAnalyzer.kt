@@ -14,6 +14,7 @@ import org.jetbrains.kotlin.fir.render
 import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
+import org.jetbrains.kotlin.fir.resolve.transformers.resultType
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.types.*
 
@@ -78,26 +79,10 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
 
     fun enterBlock(block: FirBlock) {
         addNewSimpleNode(graph.createBlockEnterNode(block))
-//        val enterBlockNode = graph.createEnterBlockNode(block)
-//        val lastNode = lastNodes.pop()
-//        val edgeFromCondition = lastNode is WhenBranchConditionExitNode
-//        addEdge(lastNode, enterBlockNode, addInfo = !edgeFromCondition)
-//        if (edgeFromCondition) {
-//            val trueCondition = (lastNode as WhenBranchConditionExitNode).condition
-//            enterBlockNode.facts = factSystem.verifyFacts(lastNode.facts, trueCondition, lexicalScopes.size)
-//        }
-//        lastNodes.push(enterBlockNode)
-//        lexicalScopes.push(stackOf(enterBlockNode))
     }
 
     fun exitBlock(block: FirBlock) {
         addNewSimpleNode(graph.createBlockExitNode(block))
-//        val blockExitNode = graph.createBlockExitNode(block)
-//        val lastNode = lastNodes.pop()
-//        addEdge(lastNode, blockExitNode, addInfo = false)
-//        lexicalScopes.pop()
-//        addEdge(blockExitNode, lastNodes.pop())
-//        lastNodes.push(blockExitNode)
     }
 
     // ----------------------------------- Type operator call -----------------------------------
@@ -105,33 +90,19 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {
         val node = graph.createTypeOperatorCallNode(typeOperatorCall)
         addNewSimpleNode(node)
-//        if (typeOperatorCall.operation == FirOperation.IS) {
-//            val symbol = typeOperatorCall.argument.toResolvedCallableSymbol() as? FirBasedSymbol<*> ?: return
-//            val type = typeOperatorCall.conversionTypeRef.coneTypeSafe<ConeKotlinType>() ?: return
-//
-//            val variable = variableStorage[symbol.fir] ?: return
-//            val conditionalVariable = conditionVariables.top()
-//            val info = UnverifiedInfo(
-//                BooleanCondition(conditionalVariable, true),
-//                FirDataFlowInfo(variable, setOf(type), emptySet())
-//            )
-//            outputEdges[node] = node.facts + info
-//        }
     }
 
     // ----------------------------------- Jump -----------------------------------
 
     fun exitJump(jump: FirJump<*>) {
         val node = graph.createJumpNode(jump)
-        addEdge(lastNodes.pop(), node)
         val nextNode = when (jump) {
             is FirReturnExpression -> functionExitNodes[jump.target.labeledElement]
             is FirContinueExpression -> loopEnterNodes[jump.target.labeledElement]
             is FirBreakExpression -> loopExitNodes[jump.target.labeledElement]
             else -> throw IllegalArgumentException("Unknown jump type: ${jump.render()}")
         }
-        addEdge(node, nextNode)
-        lastNodes.push(graph.createStubNode())
+        addNodeWithJump(node, nextNode)
     }
 
     // ----------------------------------- When -----------------------------------
@@ -161,16 +132,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         val node = graph.createWhenBranchResultExitNode(whenBranch)
         addEdge(lastNodes.pop(), node)
         val whenExitNode = whenExitNodes.top()
-        addEdge(node, whenExitNode)
-
-//        val factsBeforeResult = conditionExitNode.facts
-//        val factsFromResult = lastResultNode.facts
-//        val newVerifiedInfos = factsFromResult.verifiedInfos - factsBeforeResult.verifiedInfos
-//        val newUnverifiedInfos = newVerifiedInfos.map { UnverifiedInfo(conditionExitNode.condition, it.dataFlowInfo) }
-//        addEdge(lastResultNode, resultExitNode, addInfo = false)
-//        addEdge(resultExitNode, whenExitNode, addInfo = false)
-//        val facts = factsBeforeResult + newUnverifiedInfos + factsFromResult.unverifiedInfos
-//        resultExitNode.facts = facts
+        addEdge(node, whenExitNode, propagateDeadness = false)
     }
 
     fun exitWhenExpression(whenExpression: FirWhenExpression) {
@@ -196,6 +158,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     fun exitWhileLoopCondition(loop: FirLoop) {
         val conditionExitNode = graph.createLoopConditionExitNode(loop)
         addNewSimpleNode(conditionExitNode)
+        // TODO: here we can check that condition is always true
         addEdge(conditionExitNode, loopExitNodes.top())
         addNewSimpleNode(graph.createLoopBlockEnterNode(loop))
     }
@@ -205,7 +168,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         addEdge(lastNodes.pop(), loopBlockExitNode)
         val conditionEnterNode = lastNodes.pop()
         require(conditionEnterNode is LoopConditionEnterNode)
-        addEdge(loopBlockExitNode, conditionEnterNode)
+        addEdge(loopBlockExitNode, conditionEnterNode, propagateDeadness = false)
         lastNodes.push(loopExitNodes.pop())
     }
 
@@ -227,10 +190,11 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
 
     fun exitDoWhileLoop(loop: FirLoop) {
         val conditionExitNode = graph.createLoopConditionExitNode(loop)
+        // TODO: here we can check that condition is always false
         addEdge(lastNodes.pop(), conditionExitNode)
         val blockEnterNode = lastNodes.pop()
         require(blockEnterNode is LoopBlockEnterNode)
-        addEdge(conditionExitNode, blockEnterNode)
+        addEdge(conditionExitNode, blockEnterNode, propagateDeadness = false)
         val loopExit = loopExitNodes.pop()
         addEdge(conditionExitNode, loopExit)
         lastNodes.push(loopExit)
@@ -238,23 +202,72 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
 
     // ----------------------------------- Resolvable call -----------------------------------
 
-    // -------------------------------------------------------------------------------------------------------------------------
-
-    private fun addNewSimpleNodeWithoutExtractingFromStack(node: CFGNode<*>): CFGNode<*> {
-        return connectNodes(lastNodes.top(), node)
+    fun exitQualifiedAccessExpression(qualifiedAccessExpression: FirQualifiedAccessExpression) {
+        val returnsNothing = qualifiedAccessExpression.resultType.isNothing
+        val node = graph.createQualifiedAccessNode(qualifiedAccessExpression, returnsNothing)
+        if (returnsNothing) {
+            addNodeThatReturnsNothing(node)
+        } else {
+            addNewSimpleNode(node)
+        }
     }
 
-    private fun connectNodes(oldNode: CFGNode<*>, newNode: CFGNode<*>): CFGNode<*> {
+    fun enterFunctionCall(functionCall: FirFunctionCall) {
+        // TODO: add processing in-place lambdas
+    }
+
+    fun exitFunctionCall(functionCall: FirFunctionCall) {
+        val returnsNothing = functionCall.resultType.isNothing
+        val node = graph.createFunctionCallNode(functionCall, returnsNothing)
+        if (returnsNothing) {
+            addNodeThatReturnsNothing(node)
+        } else {
+            addNewSimpleNode(node)
+        }
+    }
+
+    fun exitConstExpresion(constExpression: FirConstExpression<*>) {
+        addNewSimpleNode(graph.createConstExpressionNode(constExpression))
+    }
+
+    fun exitVariableDeclaration(variable: FirVariable<*>) {
+        addNewSimpleNode(graph.createVariableDeclarationNode(variable))
+    }
+
+    fun exitVariableAssignment(assignment: FirVariableAssignment) {
+        addNewSimpleNode(graph.createVariableAssignmentNode(assignment))
+    }
+
+    fun exitThrowExceptionNode(throwExpression: FirThrowExpression) {
+        val node = graph.createThrowExceptionNode(throwExpression)
+        addNodeThatReturnsNothing(node)
+    }
+
+    // -------------------------------------------------------------------------------------------------------------------------
+
+    private fun addNodeThatReturnsNothing(node: CFGNode<*>) {
+        addNodeWithJump(node, functionExitNodes.top())
+    }
+
+    private fun addNodeWithJump(node: CFGNode<*>, targetNode: CFGNode<*>) {
+        addEdge(lastNodes.pop(), node)
+        addEdge(node, targetNode)
+        val stub = graph.createStubNode()
+        addEdge(node, stub)
+        lastNodes.push(stub)
+    }
+
+    private fun addNewSimpleNode(newNode: CFGNode<*>): CFGNode<*> {
+        val oldNode = lastNodes.pop()
         addEdge(oldNode, newNode)
         lastNodes.push(newNode)
         return oldNode
     }
 
-    private fun addNewSimpleNode(node: CFGNode<*>): CFGNode<*> {
-        return connectNodes(lastNodes.pop(), node)
-    }
-
-    private fun addEdge(from: CFGNode<*>, to: CFGNode<*>, addInfo: Boolean = true) {
+    private fun addEdge(from: CFGNode<*>, to: CFGNode<*>, addInfo: Boolean = true, propagateDeadness: Boolean = true) {
+        if (propagateDeadness && from.isDead) {
+            to.isDead = true
+        }
         from.followingNodes += to
         to.previousNodes += from
         if (addInfo) to.facts = outputEdges[from] ?: from.facts

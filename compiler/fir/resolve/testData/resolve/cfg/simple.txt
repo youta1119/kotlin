@@ -1,10 +1,8 @@
-0: Enter function "foo" -> 1
-1:   Enter block -> 2
-2:   Exit block -> 3
-3: Exit function "foo" ->
-
-0: Enter function "test" -> 1
-1:   Enter block -> 2
-2:   Exit block -> 3
-3: Exit function "test" ->
-
+FILE: simple.kt
+    public final fun foo(): R|kotlin/Unit| {
+    }
+    public final fun test(): R|kotlin/Unit| {
+        lval x: R|kotlin/Int| = Int(1)
+        lval y: R|kotlin/Int| = R|<local>/x|.R|kotlin/Int.plus|(Int(1))
+        R|/foo|()
+    }

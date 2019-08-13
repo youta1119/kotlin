@@ -1,0 +1,60 @@
+ 0: Enter function "testWhile" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Enter whileloop -> 3  |  <- 1
+ 3:       Enter loop condition -> 4  |  <- 2, 10
+ 4:       Exit loop condition -> 5, 11  |  <- 3
+ 5:       Enter loop block -> 6  |  <- 4
+ 6:         Enter block -> 7  |  <- 5
+ 7:           Type operator: "x is String" -> 8  |  <- 6
+ 8:           Variable declaration: lval y: R|kotlin/Boolean| -> 9  |  <- 7
+ 9:         Exit block -> 10  |  <- 8
+10:       Exit loop block -> 3  |  <- 9
+11:     Exit whileloop -> 12  |  <- 4
+12:     Type operator: "x is String" -> 13  |  <- 11
+13:   Exit block -> 14  |  <- 12
+14: Exit function "testWhile" ->   |  <- 13
+
+ 0: Enter function "testDoWhile" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Enter do-whileloop -> 3  |  <- 1
+ 3:       Enter loop block -> 4  |  <- 2, 10
+ 4:         Enter block -> 5  |  <- 3
+ 5:           Type operator: "x is String" -> 6  |  <- 4
+ 6:           Variable declaration: lval y: R|kotlin/Boolean| -> 7  |  <- 5
+ 7:         Exit block -> 8  |  <- 6
+ 8:       Exit loop block -> 9  |  <- 7
+ 9:       Enter loop condition -> 10  |  <- 8
+10:       Exit loop condition -> 3, 11  |  <- 9
+11:     Exit do-whileloop -> 12  |  <- 10
+12:     Type operator: "x is String" -> 13  |  <- 11
+13:   Exit block -> 14  |  <- 12
+14: Exit function "testDoWhile" ->   |  <- 13
+
+ 0: Enter function "testFor" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Const: Int(0) -> 3  |  <- 1
+ 3:     Const: Int(5) -> 4  |  <- 2
+ 4:     Function call: Int(0).R?C|kotlin/Int.rangeTo|(Int(5)) -> 5  |  <- 3
+ 5:     Variable declaration: lval <range>: R|kotlin/ranges/IntRange| -> 6  |  <- 4
+ 6:     Access variable R|<local>/<range>| -> 7  |  <- 5
+ 7:     Function call: R|<local>/<range>|.R?C|kotlin/ranges/IntProgression.iterator|() -> 8  |  <- 6
+ 8:     Variable declaration: lval <iterator>: R|kotlin/collections/IntIterator| -> 9  |  <- 7
+ 9:     Enter whileloop -> 10  |  <- 8
+10:       Enter loop condition -> 11  |  <- 9, 22
+11:       Access variable R|<local>/<iterator>| -> 12  |  <- 10
+12:       Function call: R|<local>/<iterator>|.R?C|kotlin/collections/Iterator.hasNext|() -> 13  |  <- 11
+13:       Exit loop condition -> 14, 23  |  <- 12
+14:       Enter loop block -> 15  |  <- 13
+15:         Enter block -> 16  |  <- 14
+16:           Access variable R|<local>/<iterator>| -> 17  |  <- 15
+17:           Function call: R|<local>/<iterator>|.R?C|kotlin/collections/IntIterator.next|() -> 18  |  <- 16
+18:           Variable declaration: lval i: R|kotlin/Int| -> 19  |  <- 17
+19:           Type operator: "x is String" -> 20  |  <- 18
+20:           Variable declaration: lval y: R|kotlin/Boolean| -> 21  |  <- 19
+21:         Exit block -> 22  |  <- 20
+22:       Exit loop block -> 10  |  <- 21
+23:     Exit whileloop -> 24  |  <- 13
+24:     Type operator: "x is String" -> 25  |  <- 23
+25:   Exit block -> 26  |  <- 24
+26: Exit function "testFor" ->   |  <- 25
+

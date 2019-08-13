@@ -1,61 +1,40 @@
- 0: Stub -> 1
- 1: Exit block -> 2
- 2: Exit when branch result -> 25
- 3: Enter function "test_1" -> 4
- 4: Enter block -> 5
- 5: Enter when -> 6
- 6:   Enter when branch condition  -> 7
- 7:   Exit when branch condition -> 8, 11
- 8:     Enter block -> 9
- 9:     Exit block -> 10
-10:   Exit when branch result -> 25
-11:   Enter when branch condition  -> 12
-12:   Exit when branch condition -> 13, 16
-13:     Enter block -> 14
-14:     Exit block -> 15
-15:   Exit when branch result -> 25
-16:   Enter when branch condition  -> 17
-17:   Exit when branch condition -> 18, 20
-18:     Enter block -> 19
-19:       Jump: ^test_1 Unit -> 27
-20:       Enter when branch condition "else" -> 21
-21:       Exit when branch condition -> 22
-22:         Enter block -> 23
-23:         Exit block -> 24
-24:       Exit when branch result -> 25
-25:     Exit when -> 26
-26:   Exit block -> 27
-27: Exit function "test_1" ->
+FILE: when.kt
+    public final fun test_1(x: R|kotlin/Int|): R|kotlin/Unit| {
+        lval y: R|kotlin/Int| = when () {
+            ==(R|<local>/x|, Int(1)) ->  {
+                Int(10)
+            }
+            ==(R|<local>/x|.R|kotlin/Int.rem|(Int(2)), Int(0)) ->  {
+                Int(20)
+            }
+            ==(Int(1).R|kotlin/Int.minus|(Int(1)), Int(0)) ->  {
+                ^test_1 Unit
+            }
+            else ->  {
+                Int(5)
+            }
+        }
 
- 0: Enter function "test_2" -> 1
- 1:   Enter block -> 2
- 2:     Enter when -> 3
- 3:       Enter when branch condition  -> 4
- 4:       Enter when -> 5
- 5:         Enter when branch condition  -> 6
- 6:         Type operator: "x is A" -> 7
- 7:         Exit when branch condition -> 8, 12
- 8:           Enter block -> 9
- 9:             Type operator: "x is B" -> 10
-10:           Exit block -> 11
-11:         Exit when branch result -> 17
-12:         Enter when branch condition "else" -> 13
-13:         Exit when branch condition -> 14
-14:           Enter block -> 15
-15:           Exit block -> 16
-16:         Exit when branch result -> 17
-17:       Exit when -> 18
-18:       Exit when branch condition -> 19, 23
-19:         Enter block -> 20
-20:           Type operator: "x is A" -> 21
-21:         Exit block -> 22
-22:       Exit when branch result -> 28
-23:       Enter when branch condition "else" -> 24
-24:       Exit when branch condition -> 25
-25:         Enter block -> 26
-26:         Exit block -> 27
-27:       Exit when branch result -> 28
-28:     Exit when -> 29
-29:   Exit block -> 30
-30: Exit function "test_2" ->
+    }
+    public abstract interface A : R|kotlin/Any| {
+    }
+    public abstract interface B : R|kotlin/Any| {
+    }
+    public final fun test_2(x: R|kotlin/Any?|): R|kotlin/Unit| {
+        when () {
+            when () {
+                (R|<local>/x| is R|A|) ->  {
+                    (R|<local>/x| is R|B|)
+                }
+                else ->  {
+                    Boolean(false)
+                }
+            }
+             ->  {
+                (R|<local>/x| is R|A|)
+            }
+            else ->  {
+            }
+        }
 
+    }

@@ -5,18 +5,28 @@
 
 package org.jetbrains.kotlin.fir
 
+import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
 import org.jetbrains.kotlin.fir.resolve.dfa.FirControlFlowGraphReferenceImpl
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.renderToStringBuilder
 import org.jetbrains.kotlin.fir.visitors.FirVisitorVoid
+import org.jetbrains.kotlin.test.ConfigurationKind
 import org.jetbrains.kotlin.test.KotlinTestUtils
 import java.io.File
 
 abstract class AbstractFirCfgBuildingTest : AbstractFirResolveTestCase() {
+    override val configurationKind: ConfigurationKind
+        get() = ConfigurationKind.ALL
+
     override fun doTest(path: String) {
         val firFiles = processInputFile(path)
+        checkCfg(path, firFiles)
+        checkFir(path, firFiles)
+    }
+
+    fun checkCfg(path: String, firFiles: List<FirFile>) {
         val firFileDump = StringBuilder().also { firFiles.first().accept(FirControlFlowGraphRenderVisitor(it), null) }.toString()
-        val expectedPath = path.replace(".kt", ".txt")
+        val expectedPath = path.replace(".kt", ".cfg.txt")
         KotlinTestUtils.assertEqualsToFile(File(expectedPath), firFileDump)
     }
 

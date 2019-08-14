@@ -793,9 +793,20 @@ open class FirBodyResolveTransformer(
         binaryLogicExpression: FirBinaryLogicExpression,
         data: Any?
     ): CompositeTransformResult<FirStatement> {
-        return super.transformBinaryLogicExpression(binaryLogicExpression, booleanType).also {
-            (it.single as FirBinaryLogicExpression).resultType = booleanType
-        }
+        return when (binaryLogicExpression.kind) {
+            FirBinaryLogicExpression.OperationKind.AND ->
+                binaryLogicExpression.also(dataFlowAnalyzer::enterBinaryAnd)
+                    .transformLeftOperand(this, booleanType).also(dataFlowAnalyzer::exitLeftBinaryAndArgument)
+                    .transformRightOperand(this, booleanType).also(dataFlowAnalyzer::exitBinaryAnd)
+
+            FirBinaryLogicExpression.OperationKind.OR ->
+                binaryLogicExpression.also(dataFlowAnalyzer::enterBinaryOr)
+                    .transformLeftOperand(this, booleanType).also(dataFlowAnalyzer::exitLeftBinaryOrArgument)
+                    .transformRightOperand(this, booleanType).also(dataFlowAnalyzer::exitBinaryOr)
+
+        }.transformRest(this, booleanType).also {
+            it.resultType = booleanType
+        }.compose()
     }
 
     override fun transformOperatorCall(operatorCall: FirOperatorCall, data: Any?): CompositeTransformResult<FirStatement> {

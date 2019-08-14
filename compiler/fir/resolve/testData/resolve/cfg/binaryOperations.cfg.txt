@@ -1,0 +1,93 @@
+ 0: Enter function "test_1" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Enter when -> 3  |  <- 1
+ 3:       Enter when branch condition  -> 4  |  <- 2
+ 4:       Enter || -> 5, 6  |  <- 3
+ 5:         Access variable R|<local>/b2| -> 7  |  <- 4
+ 6:         Access variable R|<local>/b1| -> 7  |  <- 4
+ 7:       Exit || -> 8  |  <- 5, 6
+ 8:       Exit when branch condition -> 9, 13  |  <- 7
+ 9:         Enter block -> 10  |  <- 8
+10:           Const: Int(1) -> 11  |  <- 9
+11:         Exit block -> 12  |  <- 10
+12:       Exit when branch result -> 18  |  <- 11
+13:       Enter when branch condition "else" -> 14  |  <- 8
+14:       Exit when branch condition -> 15  |  <- 13
+15:         Enter block -> 16  |  <- 14
+16:         Exit block -> 17  |  <- 15
+17:       Exit when branch result -> 18  |  <- 16
+18:     Exit when -> 19  |  <- 12, 17
+19:   Exit block -> 20  |  <- 18
+20: Exit function "test_1" ->   |  <- 19
+
+ 0: Enter function "test_2" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Enter when -> 3  |  <- 1
+ 3:       Enter when branch condition  -> 4  |  <- 2
+ 4:       Enter && -> 5  |  <- 3
+ 5:         Access variable R|<local>/b1| -> 6, 7  |  <- 4
+ 6:         Access variable R|<local>/b2| -> 7  |  <- 5
+ 7:       Exit && -> 8  |  <- 5, 6
+ 8:       Exit when branch condition -> 9, 13  |  <- 7
+ 9:         Enter block -> 10  |  <- 8
+10:           Const: Int(1) -> 11  |  <- 9
+11:         Exit block -> 12  |  <- 10
+12:       Exit when branch result -> 18  |  <- 11
+13:       Enter when branch condition "else" -> 14  |  <- 8
+14:       Exit when branch condition -> 15  |  <- 13
+15:         Enter block -> 16  |  <- 14
+16:         Exit block -> 17  |  <- 15
+17:       Exit when branch result -> 18  |  <- 16
+18:     Exit when -> 19  |  <- 12, 17
+19:   Exit block -> 20  |  <- 18
+20: Exit function "test_2" ->   |  <- 19
+
+ 0: Enter function "test_3" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Enter when -> 3  |  <- 1
+ 3:       Enter when branch condition  -> 4  |  <- 2
+ 4:       Enter || -> 5, 6  |  <- 3
+ 5:         Access variable R|<local>/b3| -> 10  |  <- 4
+ 6:         Enter && -> 7  |  <- 4
+ 7:           Access variable R|<local>/b1| -> 8, 9  |  <- 6
+ 8:           Access variable R|<local>/b2| -> 9  |  <- 7
+ 9:         Exit && -> 10  |  <- 7, 8
+10:       Exit || -> 11  |  <- 5, 9
+11:       Exit when branch condition -> 12, 16  |  <- 10
+12:         Enter block -> 13  |  <- 11
+13:           Const: Int(1) -> 14  |  <- 12
+14:         Exit block -> 15  |  <- 13
+15:       Exit when branch result -> 21  |  <- 14
+16:       Enter when branch condition "else" -> 17  |  <- 11
+17:       Exit when branch condition -> 18  |  <- 16
+18:         Enter block -> 19  |  <- 17
+19:         Exit block -> 20  |  <- 18
+20:       Exit when branch result -> 21  |  <- 19
+21:     Exit when -> 22  |  <- 15, 20
+22:   Exit block -> 23  |  <- 21
+23: Exit function "test_3" ->   |  <- 22
+
+ 0: Enter function "test_4" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Enter when -> 3  |  <- 1
+ 3:       Enter when branch condition  -> 4  |  <- 2
+ 4:       Enter || -> 5, 9  |  <- 3
+ 5:         Enter && -> 6  |  <- 4
+ 6:           Access variable R|<local>/b2| -> 7, 8  |  <- 5
+ 7:           Access variable R|<local>/b3| -> 8  |  <- 6
+ 8:         Exit && -> 10  |  <- 6, 7
+ 9:         Access variable R|<local>/b1| -> 10  |  <- 4
+10:       Exit || -> 11  |  <- 8, 9
+11:       Exit when branch condition -> 12, 16  |  <- 10
+12:         Enter block -> 13  |  <- 11
+13:           Const: Int(1) -> 14  |  <- 12
+14:         Exit block -> 15  |  <- 13
+15:       Exit when branch result -> 21  |  <- 14
+16:       Enter when branch condition "else" -> 17  |  <- 11
+17:       Exit when branch condition -> 18  |  <- 16
+18:         Enter block -> 19  |  <- 17
+19:         Exit block -> 20  |  <- 18
+20:       Exit when branch result -> 21  |  <- 19
+21:     Exit when -> 22  |  <- 15, 20
+22:   Exit block -> 23  |  <- 21
+23: Exit function "test_4" ->   |  <- 22

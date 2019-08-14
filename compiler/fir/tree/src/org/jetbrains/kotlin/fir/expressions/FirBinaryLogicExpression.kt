@@ -27,6 +27,7 @@ abstract class FirBinaryLogicExpression(psi: PsiElement?) : FirUnknownTypeExpres
 
     abstract fun <D> transformLeftOperand(transformer: FirTransformer<D>, data: D): FirBinaryLogicExpression
     abstract fun <D> transformRightOperand(transformer: FirTransformer<D>, data: D): FirBinaryLogicExpression
+    abstract fun <D> transformRest(transformer: FirTransformer<D>, data: D): FirBinaryLogicExpression
 
     enum class OperationKind(val token: String) {
         AND("&&"), OR("||")

@@ -17,16 +17,9 @@ abstract class ControlFlowGraphNodeBuilder {
         levelCounter
     ).also { graph.init(it) }
 
-    protected fun createLoopExitNode(fir: FirLoop): LoopExitNode = LoopExitNode(
-        graph,
-        fir,
-        levelCounter
-    ).also { graph.init(it) }
-    protected fun createLoopEnterNode(fir: FirLoop): LoopEnterNode = LoopEnterNode(
-        graph,
-        fir,
-        levelCounter
-    ).also { graph.init(it) }
+    protected fun createLoopExitNode(fir: FirLoop): LoopExitNode = LoopExitNode(graph, fir, levelCounter).also { graph.init(it) }
+
+    protected fun createLoopEnterNode(fir: FirLoop): LoopEnterNode = LoopEnterNode(graph, fir, levelCounter).also { graph.init(it) }
 
     protected fun createTypeOperatorCallNode(fir: FirTypeOperatorCall): TypeOperatorCallNode =
         TypeOperatorCallNode(graph, fir, levelCounter).also { graph.init(it) }
@@ -34,48 +27,40 @@ abstract class ControlFlowGraphNodeBuilder {
     protected fun createWhenBranchConditionExitNode(fir: FirWhenBranch): WhenBranchConditionExitNode =
         WhenBranchConditionExitNode(graph, fir, levelCounter).also { graph.init(it) }
 
-    protected fun createJumpNode(fir: FirJump<*>): JumpNode = JumpNode(
-        graph,
-        fir,
-        levelCounter
-    ).also { graph.init(it) }
+    protected fun createJumpNode(fir: FirJump<*>): JumpNode =
+        JumpNode(graph, fir, levelCounter).also { graph.init(it) }
 
     protected fun createQualifiedAccessNode(
         fir: FirQualifiedAccessExpression,
         returnsNothing: Boolean
-    ): QualifiedAccessNode =
-        QualifiedAccessNode(graph, fir, returnsNothing, levelCounter).also { graph.init(it) }
+    ): QualifiedAccessNode = QualifiedAccessNode(graph, fir, returnsNothing, levelCounter).also { graph.init(it) }
 
-    protected fun createBlockEnterNode(fir: FirBlock): BlockEnterNode = BlockEnterNode(
-        graph,
-        fir,
-        levelCounter
-    ).also { graph.init(it) }
+    protected fun createBlockEnterNode(fir: FirBlock): BlockEnterNode = BlockEnterNode(graph, fir, levelCounter).also { graph.init(it) }
 
-    protected fun createBlockExitNode(fir: FirBlock): BlockExitNode = BlockExitNode(
-        graph,
-        fir,
-        levelCounter
-    ).also { graph.init(it) }
+    protected fun createBlockExitNode(fir: FirBlock): BlockExitNode = BlockExitNode(graph, fir, levelCounter).also { graph.init(it) }
 
+    protected fun createFunctionEnterNode(fir: FirFunction): FunctionEnterNode =
+        FunctionEnterNode(graph, fir, levelCounter).also {
+            graph.init(it)
+            graph.enterNode = it
+        }
 
-    protected fun createFunctionEnterNode(fir: FirFunction): FunctionEnterNode = FunctionEnterNode(
-        graph,
-        fir,
-        levelCounter
-    ).also {
-        graph.init(it)
-        graph.enterNode = it
-    }
-
-    protected fun createFunctionExitNode(fir: FirFunction): FunctionExitNode = FunctionExitNode(
-        graph,
-        fir,
-        levelCounter
-    ).also {
+    protected fun createFunctionExitNode(fir: FirFunction): FunctionExitNode = FunctionExitNode(graph, fir, levelCounter).also {
         graph.init(it)
         graph.exitNode = it
     }
+
+    protected fun createBinaryOrEnterNode(fir: FirBinaryLogicExpression): BinaryOrEnterNode =
+        BinaryOrEnterNode(graph, fir, levelCounter).also { graph.init(it) }
+
+    protected fun createBinaryOrExitNode(fir: FirBinaryLogicExpression): BinaryOrExitNode =
+        BinaryOrExitNode(graph, fir, levelCounter).also { graph.init(it) }
+
+    protected fun createBinaryAndExitNode(fir: FirBinaryLogicExpression): BinaryAndExitNode =
+        BinaryAndExitNode(graph, fir, levelCounter).also { graph.init(it) }
+
+    protected fun createBinaryAndEnterNode(fir: FirBinaryLogicExpression): BinaryAndEnterNode =
+        BinaryAndEnterNode(graph, fir, levelCounter).also { graph.init(it) }
 
     protected fun createWhenBranchConditionEnterNode(fir: FirWhenBranch): WhenBranchConditionEnterNode =
         WhenBranchConditionEnterNode(graph, fir, levelCounter).also { graph.init(it) }

@@ -9,10 +9,11 @@ import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraph
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.coneTypeUnsafe
 
 class DummyFirDataFlowAnalyzer : FirDataFlowAnalyzer() {
     override fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
-        return null
+        return qualifiedAccessExpression.typeRef.coneTypeUnsafe()
     }
 
     override fun enterNamedFunction(namedFunction: FirNamedFunction) {}
@@ -78,4 +79,16 @@ class DummyFirDataFlowAnalyzer : FirDataFlowAnalyzer() {
     override fun exitVariableAssignment(assignment: FirVariableAssignment) {}
 
     override fun exitThrowExceptionNode(throwExpression: FirThrowExpression) {}
+
+    override fun enterBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression) {}
+
+    override fun exitLeftBinaryAndArgument(binaryLogicExpression: FirBinaryLogicExpression) {}
+
+    override fun exitBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression) {}
+
+    override fun enterBinaryOr(binaryLogicExpression: FirBinaryLogicExpression) {}
+
+    override fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression) {}
+
+    override fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression) {}
 }

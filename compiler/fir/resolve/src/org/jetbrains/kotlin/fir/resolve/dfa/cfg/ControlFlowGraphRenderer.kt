@@ -60,13 +60,15 @@ fun ControlFlowGraph.renderToStringBuilder(builder: StringBuilder) {
     with(builder) {
         sortedNodes.forEachIndexed { i, node ->
             when (node) {
-                is BlockExitNode, is WhenExitNode, is LoopExitNode, is TryExpressionExitNode, is LoopConditionExitNode -> indent--
+                is BlockExitNode, is WhenExitNode, is LoopExitNode, is TryExpressionExitNode, is LoopConditionExitNode,
+                is BinaryAndExitNode, is BinaryOrExitNode -> indent--
                 is BlockEnterNode -> indent++
             }
             notVisited.remove(node)
             renderNode(node, i)
             when (node) {
-                is BlockEnterNode, is WhenEnterNode, is LoopEnterNode, is TryExpressionEnterNode, is LoopConditionEnterNode -> indent++
+                is BlockEnterNode, is WhenEnterNode, is LoopEnterNode, is TryExpressionEnterNode, is LoopConditionEnterNode,
+                is BinaryAndEnterNode, is BinaryOrEnterNode -> indent++
                 is BlockExitNode -> indent--
             }
         }
@@ -130,6 +132,11 @@ fun CFGNode<*>.render(): String =
                 is FinallyProxyEnterNode -> TODO()
                 is FinallyProxyExitNode -> TODO()
                 is TryExpressionExitNode -> "Try expression exit"
+
+                is BinaryAndEnterNode -> "Enter &&"
+                is BinaryAndExitNode -> "Exit &&"
+                is BinaryOrEnterNode -> "Enter ||"
+                is BinaryOrExitNode -> "Exit ||"
 
                 else -> TODO()
             }

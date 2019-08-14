@@ -15,10 +15,7 @@ import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraph
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraphBuilder
 import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
-import org.jetbrains.kotlin.fir.types.ConeKotlinType
-import org.jetbrains.kotlin.fir.types.ConeTypeContext
-import org.jetbrains.kotlin.fir.types.ConeTypeIntersector
-import org.jetbrains.kotlin.fir.types.coneTypeSafe
+import org.jetbrains.kotlin.fir.types.*
 
 class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataFlowAnalyzer(), BodyResolveComponents by transformer {
     private val context: ConeTypeContext get() = inferenceComponents.ctx as ConeTypeContext
@@ -34,12 +31,13 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         stackOf()
 
     override fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
-        val lastNode = graphBuilder.lastNode
-        val fir = (((qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol) as? FirBasedSymbol<*>)?.fir
-            ?: return null
-        val types = factSystem.squashExactTypes(lastNode.facts[fir]).takeIf { it.isNotEmpty() } ?: return null
-        val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
-        return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, types)
+        return qualifiedAccessExpression.typeRef.coneTypeUnsafe()
+//        val lastNode = graphBuilder.lastNode
+//        val fir = (((qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol) as? FirBasedSymbol<*>)?.fir
+//            ?: return null
+//        val types = factSystem.squashExactTypes(lastNode.facts[fir]).takeIf { it.isNotEmpty() } ?: return null
+//        val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
+//        return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, types)
     }
 
     private operator fun Facts.get(fir: FirElement): Collection<FirDataFlowInfo> =
@@ -199,6 +197,32 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
     override fun exitThrowExceptionNode(throwExpression: FirThrowExpression) {
         graphBuilder.exitThrowExceptionNode(throwExpression)
+    }
+
+    // ----------------------------------- Boolean operators -----------------------------------
+
+    override fun enterBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression) {
+        graphBuilder.enterBinaryAnd(binaryLogicExpression)
+    }
+
+    override fun exitLeftBinaryAndArgument(binaryLogicExpression: FirBinaryLogicExpression) {
+        graphBuilder.exitLeftBinaryAndArgument(binaryLogicExpression)
+    }
+
+    override fun exitBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression) {
+        graphBuilder.exitBinaryAnd(binaryLogicExpression)
+    }
+
+    override fun enterBinaryOr(binaryLogicExpression: FirBinaryLogicExpression) {
+        graphBuilder.enterBinaryOr(binaryLogicExpression)
+    }
+
+    override fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression) {
+        graphBuilder.exitLeftBinaryOrArgument(binaryLogicExpression)
+    }
+
+    override fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression) {
+        graphBuilder.exitBinaryOr(binaryLogicExpression)
     }
 
     // -------------------------------------------------------------------------------------------------------------------------

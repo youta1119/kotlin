@@ -23,14 +23,19 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     private val lexicalScopes: Stack<Stack<CFGNode<*>>> = stackOf()
     private val lastNodes: Stack<CFGNode<*>> get() = lexicalScopes.top()
 
-    private val whenExitNodes: NodeStorage<FirWhenExpression, WhenExitNode> = NodeStorage()
     private val functionExitNodes: NodeStorage<FirFunction, FunctionExitNode> = NodeStorage()
+
+    private val whenExitNodes: NodeStorage<FirWhenExpression, WhenExitNode> = NodeStorage()
+
     private val loopEnterNodes: NodeStorage<FirElement, CFGNode<FirElement>> = NodeStorage()
     private val loopExitNodes: NodeStorage<FirLoop, LoopExitNode> = NodeStorage()
 
     private val tryExitNodes: NodeStorage<FirTryExpression, TryExpressionExitNode> = NodeStorage()
     private val catchNodeStorages: Stack<NodeStorage<FirCatch, CatchClauseEnterNode>> = stackOf()
     private val catchNodeStorage: NodeStorage<FirCatch, CatchClauseEnterNode> get() = catchNodeStorages.top()
+
+    private val binaryAndExitNodes: Stack<BinaryAndExitNode> = stackOf()
+    private val binaryOrExitNodes: Stack<BinaryOrExitNode> = stackOf()
 
     override var levelCounter: Int = 0
 
@@ -186,6 +191,44 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         val loopExit = loopExitNodes.pop()
         addEdge(conditionExitNode, loopExit)
         lastNodes.push(loopExit)
+    }
+
+    // ----------------------------------- Boolean operators -----------------------------------
+
+    fun enterBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression): BinaryAndEnterNode {
+        assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.AND)
+        binaryAndExitNodes.push(createBinaryAndExitNode(binaryLogicExpression))
+        return createBinaryAndEnterNode(binaryLogicExpression).also { addNewSimpleNode(it) }
+    }
+
+    fun exitLeftBinaryAndArgument(binaryLogicExpression: FirBinaryLogicExpression) {
+        assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.AND)
+        addEdge(lastNode, binaryAndExitNodes.top())
+    }
+
+    fun exitBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression): BinaryAndExitNode {
+        assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.AND)
+        return binaryAndExitNodes.pop().also { addNewSimpleNode(it) }
+    }
+
+    fun enterBinaryOr(binaryLogicExpression: FirBinaryLogicExpression): BinaryOrEnterNode {
+        assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.OR)
+        binaryOrExitNodes.push(createBinaryOrExitNode(binaryLogicExpression))
+        return createBinaryOrEnterNode(binaryLogicExpression).also {
+            addNewSimpleNode(it)
+            // put or enter node twice so we can refer it after exit from left argument
+            lastNodes.push(it)
+        }
+    }
+
+    fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression) {
+        assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.OR)
+        addEdge(lastNodes.pop(), binaryOrExitNodes.top())
+    }
+
+    fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression): BinaryOrExitNode {
+        assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.OR)
+        return binaryOrExitNodes.pop().also { addNewSimpleNode(it) }
     }
 
     // ----------------------------------- Try-catch-finally -----------------------------------

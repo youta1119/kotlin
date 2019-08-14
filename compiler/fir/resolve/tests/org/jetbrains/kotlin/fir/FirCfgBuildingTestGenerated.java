@@ -29,6 +29,11 @@ public class FirCfgBuildingTestGenerated extends AbstractFirCfgBuildingTest {
         KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/fir/resolve/testData/resolve/cfg"), Pattern.compile("^([^.]+)\\.kt$"), TargetBackend.ANY, true);
     }
 
+    @TestMetadata("binaryOperations.kt")
+    public void testBinaryOperations() throws Exception {
+        runTest("compiler/fir/resolve/testData/resolve/cfg/binaryOperations.kt");
+    }
+
     @TestMetadata("jumps.kt")
     public void testJumps() throws Exception {
         runTest("compiler/fir/resolve/testData/resolve/cfg/jumps.kt");

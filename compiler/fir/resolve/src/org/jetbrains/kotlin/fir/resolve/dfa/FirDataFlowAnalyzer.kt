@@ -61,5 +61,14 @@ abstract class FirDataFlowAnalyzer {
     abstract fun exitVariableDeclaration(variable: FirVariable<*>)
     abstract fun exitVariableAssignment(assignment: FirVariableAssignment)
     abstract fun exitThrowExceptionNode(throwExpression: FirThrowExpression)
+
+    // ----------------------------------- Boolean operators -----------------------------------
+
+    abstract fun enterBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression)
+    abstract fun exitLeftBinaryAndArgument(binaryLogicExpression: FirBinaryLogicExpression)
+    abstract fun exitBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression)
+    abstract fun enterBinaryOr(binaryLogicExpression: FirBinaryLogicExpression)
+    abstract fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression)
+    abstract fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression)
 }
 

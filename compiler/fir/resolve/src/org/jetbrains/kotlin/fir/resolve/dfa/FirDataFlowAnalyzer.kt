@@ -31,8 +31,12 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
 
     private val whenExitNodes: NodeStorage<FirWhenExpression, WhenExitNode> = NodeStorage()
     private val functionExitNodes: NodeStorage<FirFunction, FunctionExitNode> = NodeStorage()
-    private val loopEnterNodes: NodeStorage<FirLoop, LoopEnterNode> = NodeStorage()
+    private val loopEnterNodes: NodeStorage<FirElement, CFGNode<FirElement>> = NodeStorage()
     private val loopExitNodes: NodeStorage<FirLoop, LoopExitNode> = NodeStorage()
+
+    private val tryExitNodes: NodeStorage<FirTryExpression, TryExpressionExitNode> = NodeStorage()
+    private val catchNodeStorages: Stack<NodeStorage<FirCatch, CatchClauseEnterNode>> = stackOf()
+    private val catchNodeStorage: NodeStorage<FirCatch, CatchClauseEnterNode> get() = catchNodeStorages.top()
 
     private val variableStorage = DataFlowVariableStorage()
     private val edges = mutableMapOf<CFGNode<*>, Facts>().withDefault { Facts.EMPTY }
@@ -152,6 +156,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         addNewSimpleNode(node)
         // put conditional node twice so we can refer it after exit from loop block
         lastNodes.push(node)
+        loopEnterNodes.push(node)
         loopExitNodes.push(graph.createLoopExitNode(loop))
     }
 
@@ -164,6 +169,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     }
 
     fun exitWhileLoop(loop: FirLoop) {
+        loopEnterNodes.pop()
         val loopBlockExitNode = graph.createLoopBlockExitNode(loop)
         addEdge(lastNodes.pop(), loopBlockExitNode)
         val conditionEnterNode = lastNodes.pop()
@@ -180,6 +186,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         addNewSimpleNode(blockEnterNode)
         // put block enter node twice so we can refer it after exit from loop condition
         lastNodes.push(blockEnterNode)
+        loopEnterNodes.push(blockEnterNode)
         loopExitNodes.push(graph.createLoopExitNode(loop))
     }
 
@@ -189,6 +196,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     }
 
     fun exitDoWhileLoop(loop: FirLoop) {
+        loopEnterNodes.pop()
         val conditionExitNode = graph.createLoopConditionExitNode(loop)
         // TODO: here we can check that condition is always false
         addEdge(lastNodes.pop(), conditionExitNode)
@@ -198,6 +206,53 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
         val loopExit = loopExitNodes.pop()
         addEdge(conditionExitNode, loopExit)
         lastNodes.push(loopExit)
+    }
+
+    // ----------------------------------- Try-catch-finally -----------------------------------
+
+    fun enterTryExpression(tryExpression: FirTryExpression) {
+        catchNodeStorages.push(NodeStorage())
+        addNewSimpleNode(graph.createTryExpressionEnterNode(tryExpression))
+        val tryNode = graph.createTryMainBlockEnterNode(tryExpression)
+        addNewSimpleNode(tryNode)
+        addEdge(tryNode, functionExitNodes.top())
+        tryExitNodes.push(graph.createTryExpressionExitNode(tryExpression))
+
+        for (catch in tryExpression.catches) {
+            val catchNode = graph.createCatchClauseEnterNode(catch)
+            catchNodeStorage.push(catchNode)
+            addEdge(tryNode, catchNode)
+            addEdge(catchNode, functionExitNodes.top())
+        }
+
+        // TODO: add finally
+    }
+
+    fun exitTryMainBlock(tryExpression: FirTryExpression) {
+        val node = graph.createTryMainBlockExitNode(tryExpression)
+        addEdge(lastNodes.pop(), node)
+        addEdge(node, tryExitNodes.top())
+    }
+
+    fun enterCatchClause(catch: FirCatch) {
+        lastNodes.push(catchNodeStorage[catch])
+    }
+
+    fun exitCatchClause(catch: FirCatch) {
+        val node = graph.createCatchClauseExitNode(catch)
+        addEdge(lastNodes.pop(), node)
+        addEdge(node, tryExitNodes.top(), propagateDeadness = false)
+    }
+
+    fun enterFinallyBlock(tryExpression: FirTryExpression) { /*TODO*/ }
+
+    fun exitFinallyBlock(tryExpression: FirTryExpression) { /*TODO*/ }
+
+    fun exitTryExpression(tryExpression: FirTryExpression) {
+        catchNodeStorages.pop()
+        val node = tryExitNodes.pop()
+        node.markAsDeadIfNecessary()
+        lastNodes.push(node)
     }
 
     // ----------------------------------- Resolvable call -----------------------------------
@@ -244,6 +299,10 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     }
 
     // -------------------------------------------------------------------------------------------------------------------------
+
+    private fun CFGNode<*>.markAsDeadIfNecessary() {
+        isDead = previousNodes.all { it.isDead }
+    }
 
     private fun addNodeThatReturnsNothing(node: CFGNode<*>) {
         addNodeWithJump(node, functionExitNodes.top())

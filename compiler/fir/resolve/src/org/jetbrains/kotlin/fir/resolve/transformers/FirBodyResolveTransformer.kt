@@ -371,26 +371,38 @@ open class FirBodyResolveTransformer(
 
 
     override fun transformCatch(catch: FirCatch, data: Any?): CompositeTransformResult<FirCatch> {
+        dataFlowAnalyzer.enterCatchClause(catch)
         return withScopeCleanup(localScopes) {
             localScopes += FirLocalScope()
             catch.transformParameter(this, noExpectedType)
-            catch.transformBlock(this, null).compose()
-        }
+            catch.transformBlock(this, null)
+        }.also { dataFlowAnalyzer.exitCatchClause(it) }.compose()
     }
 
     override fun transformTryExpression(tryExpression: FirTryExpression, data: Any?): CompositeTransformResult<FirStatement> {
         if (tryExpression.calleeReference is FirResolvedCallableReference && tryExpression.resultType !is FirImplicitTypeRef) {
             return tryExpression.compose()
         }
+
+        dataFlowAnalyzer.enterTryExpression(tryExpression)
         tryExpression.transformTryBlock(this, null)
+        dataFlowAnalyzer.exitTryMainBlock(tryExpression)
         tryExpression.transformCatches(this, null)
 
         @Suppress("NAME_SHADOWING")
         val tryExpression = syntheticCallGenerator.generateCalleeForTryExpression(tryExpression) ?: return tryExpression.compose()
         val expectedTypeRef = data as FirTypeRef?
-        val result = callCompleter.completeCall(tryExpression, expectedTypeRef)
+        var result = callCompleter.completeCall(tryExpression, expectedTypeRef)
 
-        return result.transformFinallyBlock(this, noExpectedType).compose()
+        result = if (result.finallyBlock != null) {
+            result.also(dataFlowAnalyzer::enterFinallyBlock)
+                .transformFinallyBlock(this, noExpectedType)
+                .also(dataFlowAnalyzer::exitFinallyBlock)
+        } else {
+            result
+        }
+        dataFlowAnalyzer.exitTryExpression(result)
+        return result.compose()
     }
 
     override fun transformFunctionCall(functionCall: FirFunctionCall, data: Any?): CompositeTransformResult<FirStatement> {

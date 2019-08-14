@@ -60,13 +60,13 @@ fun ControlFlowGraph.renderToStringBuilder(builder: StringBuilder) {
     with(builder) {
         sortedNodes.forEachIndexed { i, node ->
             when (node) {
-                is BlockExitNode, is WhenExitNode, is LoopExitNode -> indent--
+                is BlockExitNode, is WhenExitNode, is LoopExitNode, is TryExpressionExitNode, is LoopConditionExitNode -> indent--
                 is BlockEnterNode -> indent++
             }
             notVisited.remove(node)
             renderNode(node, i)
             when (node) {
-                is BlockEnterNode, is WhenEnterNode, is LoopEnterNode -> indent++
+                is BlockEnterNode, is WhenEnterNode, is LoopEnterNode, is TryExpressionEnterNode, is LoopConditionEnterNode -> indent++
                 is BlockExitNode -> indent--
             }
         }
@@ -100,7 +100,7 @@ fun CFGNode<*>.render(): String =
                 is WhenBranchResultExitNode -> "Exit when branch result"
                 is WhenExitNode -> "Exit when"
 
-                is LoopEnterNode -> "Enter ${fir.type()}loop"
+                is LoopEnterNode -> "Enter ${fir.type()} loop"
                 is LoopBlockEnterNode -> "Enter loop block"
                 is LoopBlockExitNode -> "Exit loop block"
                 is LoopConditionEnterNode -> "Enter loop condition"
@@ -119,6 +119,17 @@ fun CFGNode<*>.render(): String =
                 is VariableAssignmentNode -> "Assignmenet: ${fir.lValue.render()}"
                 is FunctionCallNode -> "Function call: ${fir.render()}"
                 is ThrowExceptionNode -> "Throw: ${fir.render()}"
+
+                is TryExpressionEnterNode -> "Try expression enter"
+                is TryMainBlockEnterNode -> "Try main block enter"
+                is TryMainBlockExitNode -> "Try main block exit"
+                is CatchClauseEnterNode -> "Catch enter"
+                is CatchClauseExitNode -> "Catch exit"
+                is FinallyBlockEnterNode -> TODO()
+                is FinallyBlockExitNode -> TODO()
+                is FinallyProxyEnterNode -> TODO()
+                is FinallyProxyExitNode -> TODO()
+                is TryExpressionExitNode -> "Try expression exit"
 
                 else -> TODO()
             }

@@ -1,1 +1,110 @@
+ 0: Enter function "test_1" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Try expression enter -> 3  |  <- 1
+ 3:       Try main block enter -> 4, 9, 15, 23  |  <- 2
+ 4:         Enter block -> 5  |  <- 3
+ 5:           Const: Int(1) -> 6  |  <- 4
+ 6:           Variable declaration: lval x: R|kotlin/Int| -> 7  |  <- 5
+ 7:         Exit block -> 8  |  <- 6
+ 8:       Try main block exit -> 21  |  <- 7
+ 9:       Catch enter -> 10, 23  |  <- 3
+10:         Enter block -> 11  |  <- 9
+11:           Const: Int(3) -> 12  |  <- 10
+12:           Variable declaration: lval z: R|kotlin/Int| -> 13  |  <- 11
+13:         Exit block -> 14  |  <- 12
+14:       Catch exit -> 21  |  <- 13
+15:       Catch enter -> 16, 23  |  <- 3
+16:         Enter block -> 17  |  <- 15
+17:           Const: Int(2) -> 18  |  <- 16
+18:           Variable declaration: lval y: R|kotlin/Int| -> 19  |  <- 17
+19:         Exit block -> 20  |  <- 18
+20:       Catch exit -> 21  |  <- 19
+21:     Try expression exit -> 22  |  <- 8, 14, 20
+22:   Exit block -> 23  |  <- 21
+23: Exit function "test_1" ->   |  <- 3, 9, 15, 22
+
+ 0: Enter function "test_2" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Try expression enter -> 3  |  <- 1
+ 3:       Try main block enter -> 4, 8, 16  |  <- 2
+ 4:         Enter block -> 5  |  <- 3
+ 5:           Const: Int(1) -> 6  |  <- 4
+ 6:         Exit block -> 7  |  <- 5
+ 7:       Try main block exit -> 13  |  <- 6
+ 8:       Catch enter -> 9, 16  |  <- 3
+ 9:         Enter block -> 10  |  <- 8
+10:           Const: Int(2) -> 11  |  <- 9
+11:         Exit block -> 12  |  <- 10
+12:       Catch exit -> 13  |  <- 11
+13:     Try expression exit -> 14  |  <- 7, 12
+14:     Variable declaration: lval x: R|kotlin/Int| -> 15  |  <- 13
+15:   Exit block -> 16  |  <- 14
+16: Exit function "test_2" ->   |  <- 3, 8, 15
+
+ 0: Enter function "test_3" -> 1
+ 1:   Enter block -> 2  |  <- 0
+ 2:     Enter while loop -> 3  |  <- 1
+ 3:       Enter loop condition -> 4  |  <- 2, 52, 60
+ 4:         Const: Boolean(true) -> 5  |  <- 3
+ 5:       Exit loop condition -> 6, 61  |  <- 4
+ 6:       Enter loop block -> 7  |  <- 5
+ 7:         Enter block -> 8  |  <- 6
+ 8:           Try expression enter -> 9  |  <- 7
+ 9:             Try main block enter -> 10, 44, 50, 65  |  <- 8
+10:               Enter block -> 11  |  <- 9
+11:                 Enter when -> 12  |  <- 10
+12:                   Enter when branch condition  -> 13  |  <- 11
+13:                   Exit when branch condition -> 14, 19  |  <- 12
+14:                     Enter block -> 15  |  <- 13
+15:                       Jump: ^test_3 Unit -> 16[DEAD], 65  |  <- 14
+16:                       Stub[DEAD] -> 17  |  <- 15
+17:                     Exit block[DEAD] -> 18  |  <- 16
+18:                   Exit when branch result[DEAD] -> 24  |  <- 17
+19:                   Enter when branch condition "else" -> 20  |  <- 13
+20:                   Exit when branch condition -> 21  |  <- 19
+21:                     Enter block -> 22  |  <- 20
+22:                     Exit block -> 23  |  <- 21
+23:                   Exit when branch result -> 24  |  <- 22
+24:                 Exit when -> 25  |  <- 18[DEAD], 23
+25:                 Const: Int(1) -> 26  |  <- 24
+26:                 Variable declaration: lval x: R|kotlin/Int| -> 27  |  <- 25
+27:                 Enter when -> 28  |  <- 26
+28:                   Enter when branch condition  -> 29  |  <- 27
+29:                   Function call: R|<local>/b|.R?C|kotlin/Boolean.not|() -> 30  |  <- 28
+30:                   Exit when branch condition -> 31, 36  |  <- 29
+31:                     Enter block -> 32  |  <- 30
+32:                       Jump: break@@@[Boolean(true)]  -> 33[DEAD], 61  |  <- 31
+33:                       Stub[DEAD] -> 34  |  <- 32
+34:                     Exit block[DEAD] -> 35  |  <- 33
+35:                   Exit when branch result[DEAD] -> 41  |  <- 34
+36:                   Enter when branch condition "else" -> 37  |  <- 30
+37:                   Exit when branch condition -> 38  |  <- 36
+38:                     Enter block -> 39  |  <- 37
+39:                     Exit block -> 40  |  <- 38
+40:                   Exit when branch result -> 41  |  <- 39
+41:                 Exit when -> 42  |  <- 35[DEAD], 40
+42:               Exit block -> 43  |  <- 41
+43:             Try main block exit -> 56  |  <- 42
+44:             Catch enter -> 45, 65  |  <- 9
+45:               Enter block -> 46  |  <- 44
+46:                 Jump: break@@@[Boolean(true)]  -> 47[DEAD], 61  |  <- 45
+47:                 Stub[DEAD] -> 48  |  <- 46
+48:               Exit block[DEAD] -> 49  |  <- 47
+49:             Catch exit[DEAD] -> 56  |  <- 48
+50:             Catch enter -> 51, 65  |  <- 9
+51:               Enter block -> 52  |  <- 50
+52:                 Jump: continue@@@[Boolean(true)]  -> 3, 53[DEAD]  |  <- 51
+53:                 Stub[DEAD] -> 54  |  <- 52
+54:               Exit block[DEAD] -> 55  |  <- 53
+55:             Catch exit[DEAD] -> 56  |  <- 54
+56:           Try expression exit -> 57  |  <- 43, 49[DEAD], 55[DEAD]
+57:           Const: Int(2) -> 58  |  <- 56
+58:           Variable declaration: lval y: R|kotlin/Int| -> 59  |  <- 57
+59:         Exit block -> 60  |  <- 58
+60:       Exit loop block -> 3  |  <- 59
+61:     Exit whileloop -> 62  |  <- 5, 32, 46
+62:     Const: Int(3) -> 63  |  <- 61
+63:     Variable declaration: lval z: R|kotlin/Int| -> 64  |  <- 62
+64:   Exit block -> 65  |  <- 63
+65: Exit function "test_3" ->   |  <- 9, 15, 44, 50, 64
 

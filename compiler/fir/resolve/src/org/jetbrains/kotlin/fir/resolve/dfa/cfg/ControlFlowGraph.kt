@@ -17,7 +17,7 @@ class ControlFlowGraph {
     lateinit var exitNode: FunctionExitNode
 }
 
-sealed class CFGNode<E : FirElement>(val owner: ControlFlowGraph) {
+sealed class CFGNode<out E : FirElement>(val owner: ControlFlowGraph) {
     val previousNodes = mutableListOf<CFGNode<*>>()
     val followingNodes = mutableListOf<CFGNode<*>>()
 
@@ -57,6 +57,17 @@ class LoopConditionEnterNode(owner: ControlFlowGraph, override val fir: FirLoop)
 class LoopConditionExitNode(owner: ControlFlowGraph, override val fir: FirLoop) : CFGNode<FirLoop>(owner)
 class LoopExitNode(owner: ControlFlowGraph, override val fir: FirLoop) : CFGNode<FirLoop>(owner)
 
+class TryExpressionEnterNode(owner: ControlFlowGraph, override val fir: FirTryExpression) : CFGNode<FirTryExpression>(owner)
+class TryMainBlockEnterNode(owner: ControlFlowGraph, override val fir: FirTryExpression) : CFGNode<FirTryExpression>(owner)
+class TryMainBlockExitNode(owner: ControlFlowGraph, override val fir: FirTryExpression) : CFGNode<FirTryExpression>(owner)
+class CatchClauseEnterNode(owner: ControlFlowGraph, override val fir: FirCatch) : CFGNode<FirCatch>(owner)
+class CatchClauseExitNode(owner: ControlFlowGraph, override val fir: FirCatch) : CFGNode<FirCatch>(owner)
+class FinallyBlockEnterNode(owner: ControlFlowGraph, override val fir: FirTryExpression) : CFGNode<FirTryExpression>(owner)
+class FinallyBlockExitNode(owner: ControlFlowGraph, override val fir: FirTryExpression) : CFGNode<FirTryExpression>(owner)
+class FinallyProxyEnterNode(owner: ControlFlowGraph, override val fir: FirTryExpression) : CFGNode<FirTryExpression>(owner)
+class FinallyProxyExitNode(owner: ControlFlowGraph, override val fir: FirTryExpression) : CFGNode<FirTryExpression>(owner)
+class TryExpressionExitNode(owner: ControlFlowGraph, override val fir: FirTryExpression) : CFGNode<FirTryExpression>(owner)
+
 class TypeOperatorCallNode(owner: ControlFlowGraph, override val fir: FirTypeOperatorCall) : CFGNode<FirTypeOperatorCall>(owner)
 class JumpNode(owner: ControlFlowGraph, override val fir: FirJump<*>) : CFGNode<FirJump<*>>(owner)
 class ConstExpressionNode(owner: ControlFlowGraph, override val fir: FirConstExpression<*>) : CFGNode<FirConstExpression<*>>(owner)
@@ -81,8 +92,6 @@ class ThrowExceptionNode(
 ) : CFGNode<FirThrowExpression>(owner), ReturnableNothingNode {
     override val returnsNothing: Boolean get() = true
 }
-
-fun ControlFlowGraph.createThrowExceptionNode(fir: FirThrowExpression): ThrowExceptionNode = ThrowExceptionNode(this, fir).also(this::init)
 
 class StubNode(owner: ControlFlowGraph) : CFGNode<FirStub>(owner) {
     init {
@@ -153,3 +162,16 @@ fun ControlFlowGraph.createVariableDeclarationNode(fir: FirVariable<*>): Variabl
 
 fun ControlFlowGraph.createConstExpressionNode(fir: FirConstExpression<*>): ConstExpressionNode =
     ConstExpressionNode(this, fir).also(this::init)
+
+fun ControlFlowGraph.createThrowExceptionNode(fir: FirThrowExpression): ThrowExceptionNode = ThrowExceptionNode(this, fir).also(this::init)
+
+fun ControlFlowGraph.createFinallyProxyExitNode(fir: FirTryExpression): FinallyProxyExitNode = FinallyProxyExitNode(this, fir).also(this::init)
+fun ControlFlowGraph.createFinallyProxyEnterNode(fir: FirTryExpression): FinallyProxyEnterNode = FinallyProxyEnterNode(this, fir).also(this::init)
+fun ControlFlowGraph.createFinallyBlockExitNode(fir: FirTryExpression): FinallyBlockExitNode = FinallyBlockExitNode(this, fir).also(this::init)
+fun ControlFlowGraph.createFinallyBlockEnterNode(fir: FirTryExpression): FinallyBlockEnterNode = FinallyBlockEnterNode(this, fir).also(this::init)
+fun ControlFlowGraph.createCatchClauseExitNode(fir: FirCatch): CatchClauseExitNode = CatchClauseExitNode(this, fir).also(this::init)
+fun ControlFlowGraph.createTryMainBlockExitNode(fir: FirTryExpression): TryMainBlockExitNode = TryMainBlockExitNode(this, fir).also(this::init)
+fun ControlFlowGraph.createTryMainBlockEnterNode(fir: FirTryExpression): TryMainBlockEnterNode = TryMainBlockEnterNode(this, fir).also(this::init)
+fun ControlFlowGraph.createCatchClauseEnterNode(fir: FirCatch): CatchClauseEnterNode = CatchClauseEnterNode(this, fir).also(this::init)
+fun ControlFlowGraph.createTryExpressionEnterNode(fir: FirTryExpression): TryExpressionEnterNode = TryExpressionEnterNode(this, fir).also(this::init)
+fun ControlFlowGraph.createTryExpressionExitNode(fir: FirTryExpression): TryExpressionExitNode = TryExpressionExitNode(this, fir).also(this::init)

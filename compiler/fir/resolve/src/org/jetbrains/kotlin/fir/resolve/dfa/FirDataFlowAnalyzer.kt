@@ -5,211 +5,61 @@
 
 package org.jetbrains.kotlin.fir.resolve.dfa
 
-import org.jetbrains.kotlin.fir.FirElement
-import org.jetbrains.kotlin.fir.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.expressions.*
-import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
-import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
-import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
-import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
-import org.jetbrains.kotlin.fir.types.*
+import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraph
+import org.jetbrains.kotlin.fir.types.ConeKotlinType
 
-
-class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveComponents by transformer {
-    private val context: ConeTypeContext get() = inferenceComponents.ctx as ConeTypeContext
-    private val factSystem: FactSystem = FactSystem(context)
-
-    private val graphBuilder = ControlFlowGraphBuilder()
-
-    private val variableStorage = DataFlowVariableStorage()
-    private val edges = mutableMapOf<CFGNode<*>, Facts>().withDefault { Facts.EMPTY }
-    private val outputEdges = mutableMapOf<CFGNode<*>, Facts>()
-
-    private val conditionVariables: Stack<DataFlowVariable> = stackOf()
-
-    fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
-        val lastNode = graphBuilder.lastNode
-        val fir = (((qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol) as? FirBasedSymbol<*>)?.fir
-            ?: return null
-        val types = factSystem.squashExactTypes(lastNode.facts[fir]).takeIf { it.isNotEmpty() } ?: return null
-        val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
-        return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, types)
-    }
-
-    private operator fun Facts.get(fir: FirElement): Collection<FirDataFlowInfo> =
-        variableStorage[fir]?.let { this[it] } ?: emptyList()
-
-    private operator fun Facts.get(variable: DataFlowVariable): Collection<FirDataFlowInfo> =
-        verifiedInfos.map { it.dataFlowInfo }.filter { it.variable == variable }
+abstract class FirDataFlowAnalyzer {
+    abstract fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType?
 
     // ----------------------------------- Named function -----------------------------------
-
-    fun enterNamedFunction(namedFunction: FirNamedFunction) {
-        variableStorage.reset()
-        graphBuilder.enterNamedFunction(namedFunction)
-
-        for (valueParameter in namedFunction.valueParameters) {
-            variableStorage.createNewRealVariable(valueParameter)
-        }
-    }
-
-    fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
-        return graphBuilder.exitNamedFunction(namedFunction)
-    }
+    abstract fun enterNamedFunction(namedFunction: FirNamedFunction)
+    abstract fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph
 
     // ----------------------------------- Block -----------------------------------
-
-    fun enterBlock(block: FirBlock) {
-        graphBuilder.enterBlock(block)
-    }
-
-    fun exitBlock(block: FirBlock) {
-        graphBuilder.exitBlock(block)
-    }
+    abstract fun enterBlock(block: FirBlock)
+    abstract fun exitBlock(block: FirBlock)
 
     // ----------------------------------- Type operator call -----------------------------------
-
-    fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {
-        graphBuilder.exitTypeOperatorCall(typeOperatorCall)
-    }
+    abstract fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall)
 
     // ----------------------------------- Jump -----------------------------------
-
-    fun exitJump(jump: FirJump<*>) {
-        graphBuilder.exitJump(jump)
-    }
+    abstract fun exitJump(jump: FirJump<*>)
 
     // ----------------------------------- When -----------------------------------
-
-    fun enterWhenExpression(whenExpression: FirWhenExpression) {
-        graphBuilder.enterWhenExpression(whenExpression)
-    }
-
-    fun enterWhenBranchCondition(whenBranch: FirWhenBranch) {
-        graphBuilder.enterWhenBranchCondition(whenBranch)
-        conditionVariables.push(variableStorage.createNewSyntheticVariable(whenBranch.condition))
-    }
-
-    fun exitWhenBranchCondition(whenBranch: FirWhenBranch) {
-        val node = graphBuilder.exitWhenBranchCondition(whenBranch)
-
-        val conditionVariable = conditionVariables.pop()
-        val trueCondition = BooleanCondition(conditionVariable, true)
-        node.condition = trueCondition
-    }
-
-    fun exitWhenBranchResult(whenBranch: FirWhenBranch) {
-        graphBuilder.exitWhenBranchResult(whenBranch)
-    }
-
-    fun exitWhenExpression(whenExpression: FirWhenExpression) {
-        val whenExitNode = graphBuilder.exitWhenExpression(whenExpression)
-        intersectFactsFromPreviousNodes(whenExitNode)
-    }
+    abstract fun enterWhenExpression(whenExpression: FirWhenExpression)
+    abstract fun enterWhenBranchCondition(whenBranch: FirWhenBranch)
+    abstract fun exitWhenBranchCondition(whenBranch: FirWhenBranch)
+    abstract fun exitWhenBranchResult(whenBranch: FirWhenBranch)
+    abstract fun exitWhenExpression(whenExpression: FirWhenExpression)
 
     // ----------------------------------- While Loop -----------------------------------
-
-    fun enterWhileLoop(loop: FirLoop) {
-        graphBuilder.enterWhileLoop(loop)
-    }
-
-    fun exitWhileLoopCondition(loop: FirLoop) {
-        graphBuilder.exitWhileLoopCondition(loop)
-    }
-
-    fun exitWhileLoop(loop: FirLoop) {
-        graphBuilder.exitWhileLoop(loop)
-    }
+    abstract fun enterWhileLoop(loop: FirLoop)
+    abstract fun exitWhileLoopCondition(loop: FirLoop)
+    abstract fun exitWhileLoop(loop: FirLoop)
 
     // ----------------------------------- Do while Loop -----------------------------------
-
-    fun enterDoWhileLoop(loop: FirLoop) {
-        graphBuilder.enterDoWhileLoop(loop)
-    }
-
-    fun enterDoWhileLoopCondition(loop: FirLoop) {
-        graphBuilder.enterDoWhileLoopCondition(loop)
-    }
-
-    fun exitDoWhileLoop(loop: FirLoop) {
-        graphBuilder.exitDoWhileLoop(loop)
-    }
+    abstract fun enterDoWhileLoop(loop: FirLoop)
+    abstract fun enterDoWhileLoopCondition(loop: FirLoop)
+    abstract fun exitDoWhileLoop(loop: FirLoop)
 
     // ----------------------------------- Try-catch-finally -----------------------------------
-
-    fun enterTryExpression(tryExpression: FirTryExpression) {
-        graphBuilder.enterTryExpression(tryExpression)
-    }
-
-    fun exitTryMainBlock(tryExpression: FirTryExpression) {
-        graphBuilder.exitTryMainBlock(tryExpression)
-    }
-
-    fun enterCatchClause(catch: FirCatch) {
-        graphBuilder.enterCatchClause(catch)
-    }
-
-    fun exitCatchClause(catch: FirCatch) {
-        graphBuilder.exitCatchClause(catch)
-    }
-
-    fun enterFinallyBlock(tryExpression: FirTryExpression) {
-        graphBuilder.enterFinallyBlock(tryExpression)
-    }
-
-    fun exitFinallyBlock(tryExpression: FirTryExpression) {
-        graphBuilder.exitFinallyBlock(tryExpression)
-    }
-
-    fun exitTryExpression(tryExpression: FirTryExpression) {
-        graphBuilder.exitTryExpression(tryExpression)
-    }
+    abstract fun enterTryExpression(tryExpression: FirTryExpression)
+    abstract fun exitTryMainBlock(tryExpression: FirTryExpression)
+    abstract fun enterCatchClause(catch: FirCatch)
+    abstract fun exitCatchClause(catch: FirCatch)
+    abstract fun enterFinallyBlock(tryExpression: FirTryExpression)
+    abstract fun exitFinallyBlock(tryExpression: FirTryExpression)
+    abstract fun exitTryExpression(tryExpression: FirTryExpression)
 
     // ----------------------------------- Resolvable call -----------------------------------
-
-    fun exitQualifiedAccessExpression(qualifiedAccessExpression: FirQualifiedAccessExpression) {
-        graphBuilder.exitQualifiedAccessExpression(qualifiedAccessExpression)
-    }
-
-    fun enterFunctionCall(functionCall: FirFunctionCall) {
-        // TODO: add processing in-place lambdas
-    }
-
-    fun exitFunctionCall(functionCall: FirFunctionCall) {
-        graphBuilder.exitFunctionCall(functionCall)
-    }
-
-    fun exitConstExpresion(constExpression: FirConstExpression<*>) {
-        graphBuilder.exitConstExpresion(constExpression)
-    }
-
-    fun exitVariableDeclaration(variable: FirVariable<*>) {
-        graphBuilder.exitVariableDeclaration(variable)
-    }
-
-    fun exitVariableAssignment(assignment: FirVariableAssignment) {
-        graphBuilder.exitVariableAssignment(assignment)
-    }
-
-    fun exitThrowExceptionNode(throwExpression: FirThrowExpression) {
-        graphBuilder.exitThrowExceptionNode(throwExpression)
-    }
-
-    // -------------------------------------------------------------------------------------------------------------------------
-
-    private fun intersectFactsFromPreviousNodes(node: CFGNode<*>) {
-        node.facts = factSystem.foldFacts(node.previousNodes.map { outputEdges[it] ?: it.facts })
-    }
-
-    private var CFGNode<*>.facts: Facts
-        get() = edges.getValue(this)
-        set(value) {
-            edges[this] = value
-        }
-
-    private val CFGNode<*>.verifiedInfos: Collection<VerifiedInfo>
-        get() = facts.verifiedInfos
-
-    private val CFGNode<*>.previousFacts: List<Facts> get() = previousNodes.map { it.facts }
+    abstract fun exitQualifiedAccessExpression(qualifiedAccessExpression: FirQualifiedAccessExpression)
+    abstract fun enterFunctionCall(functionCall: FirFunctionCall)
+    abstract fun exitFunctionCall(functionCall: FirFunctionCall)
+    abstract fun exitConstExpresion(constExpression: FirConstExpression<*>)
+    abstract fun exitVariableDeclaration(variable: FirVariable<*>)
+    abstract fun exitVariableAssignment(assignment: FirVariableAssignment)
+    abstract fun exitThrowExceptionNode(throwExpression: FirThrowExpression)
 }
+

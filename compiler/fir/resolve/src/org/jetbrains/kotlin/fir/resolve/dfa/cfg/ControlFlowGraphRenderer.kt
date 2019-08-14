@@ -34,7 +34,6 @@ fun ControlFlowGraph.renderToStringBuilder(builder: StringBuilder) {
 
     val indices = sortedNodes.mapIndexed { i, node -> node to i }.toMap()
     val notVisited = sortedNodes.toMutableSet()
-    var indent = 0
     val maxLineNumberSize = sortedNodes.size.toString().length
 
     fun List<CFGNode<*>>.renderEdges(nodeIsDead: Boolean): String = map {
@@ -46,7 +45,7 @@ fun ControlFlowGraph.renderToStringBuilder(builder: StringBuilder) {
     fun StringBuilder.renderNode(node: CFGNode<*>, index: Int) {
         append(index.toString().padStart(maxLineNumberSize))
         append(": ")
-        append(INDENT.repeat(kotlin.math.max(indent, 0)))
+        append(INDENT.repeat(node.level))
         append(node.render())
         append(" -> ")
         append(node.followingNodes.renderEdges(node.isDead))
@@ -59,18 +58,8 @@ fun ControlFlowGraph.renderToStringBuilder(builder: StringBuilder) {
 
     with(builder) {
         sortedNodes.forEachIndexed { i, node ->
-            when (node) {
-                is BlockExitNode, is WhenExitNode, is LoopExitNode, is TryExpressionExitNode, is LoopConditionExitNode,
-                is BinaryAndExitNode, is BinaryOrExitNode -> indent--
-                is BlockEnterNode -> indent++
-            }
             notVisited.remove(node)
             renderNode(node, i)
-            when (node) {
-                is BlockEnterNode, is WhenEnterNode, is LoopEnterNode, is TryExpressionEnterNode, is LoopConditionEnterNode,
-                is BinaryAndEnterNode, is BinaryOrEnterNode -> indent++
-                is BlockExitNode -> indent--
-            }
         }
 
         if (notVisited.isNotEmpty()) {

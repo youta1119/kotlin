@@ -2,78 +2,89 @@
  1:   Enter block -> 2  |  <- 0
  2:     Enter when -> 3  |  <- 1
  3:       Enter when branch condition  -> 4  |  <- 2
- 4:       Const: Null(null) -> 5  |  <- 3
- 5:       Exit when branch condition -> 6, 12  |  <- 4
- 6:         Enter block -> 7  |  <- 5
- 7:           Function call: R?C|kotlin/KotlinNullPointerException.KotlinNullPointerException|() -> 8  |  <- 6
- 8:           Throw: throw R|kotlin/KotlinNullPointerException.KotlinNullPointerException|() -> 9[DEAD], 21  |  <- 7
- 9:           Stub[DEAD] -> 10  |  <- 8
-10:         Exit block[DEAD] -> 11  |  <- 9
-11:       Exit when branch result[DEAD] -> 17  |  <- 10
-12:       Enter when branch condition "else" -> 13  |  <- 5
-13:       Exit when branch condition -> 14  |  <- 12
-14:         Enter block -> 15  |  <- 13
-15:         Exit block -> 16  |  <- 14
-16:       Exit when branch result -> 17  |  <- 15
-17:     Exit when -> 18  |  <- 11[DEAD], 16
-18:     Variable declaration: lval y: R|kotlin/Int?| -> 19  |  <- 17
-19:     Function call: R|<local>/y|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 20  |  <- 18
-20:   Exit block -> 21  |  <- 19
-21: Exit function "test_1" ->   |  <- 8, 20
+ 4:         Access variable R|<local>/x| -> 5  |  <- 3
+ 5:         Const: Null(null) -> 6  |  <- 4
+ 6:       Exit when branch condition -> 7, 13  |  <- 5
+ 7:         Enter block -> 8  |  <- 6
+ 8:           Function call: R?C|kotlin/KotlinNullPointerException.KotlinNullPointerException|() -> 9  |  <- 7
+ 9:           Throw: throw R|kotlin/KotlinNullPointerException.KotlinNullPointerException|() -> 10[DEAD], 24  |  <- 8
+10:           Stub[DEAD] -> 11  |  <- 9
+11:         Exit block[DEAD] -> 12  |  <- 10
+12:       Exit when branch result[DEAD] -> 19  |  <- 11
+13:       Enter when branch condition "else" -> 14  |  <- 6
+14:       Exit when branch condition -> 15  |  <- 13
+15:         Enter block -> 16  |  <- 14
+16:           Access variable R|<local>/x| -> 17  |  <- 15
+17:         Exit block -> 18  |  <- 16
+18:       Exit when branch result -> 19  |  <- 17
+19:     Exit when -> 20  |  <- 12[DEAD], 18
+20:     Variable declaration: lval y: R|kotlin/Int?| -> 21  |  <- 19
+21:     Access variable R|<local>/y| -> 22  |  <- 20
+22:     Function call: R|<local>/y|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 23  |  <- 21
+23:   Exit block -> 24  |  <- 22
+24: Exit function "test_1" ->   |  <- 9, 23
 
  0: Enter function "test_2" -> 1
  1:   Enter block -> 2  |  <- 0
  2:     Enter when -> 3  |  <- 1
  3:       Enter when branch condition  -> 4  |  <- 2
- 4:       Const: Null(null) -> 5  |  <- 3
- 5:       Exit when branch condition -> 6, 9  |  <- 4
- 6:         Enter block -> 7  |  <- 5
- 7:         Exit block -> 8  |  <- 6
- 8:       Exit when branch result -> 14  |  <- 7
- 9:       Enter when branch condition "else" -> 10  |  <- 5
-10:       Exit when branch condition -> 11  |  <- 9
-11:         Enter block -> 12  |  <- 10
-12:         Exit block -> 13  |  <- 11
-13:       Exit when branch result -> 14  |  <- 12
-14:     Exit when -> 15  |  <- 8, 13
-15:     Variable declaration: lval y: R|kotlin/Int?| -> 16  |  <- 14
-16:     Function call: R|<local>/y|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 17  |  <- 15
-17:   Exit block -> 18  |  <- 16
-18: Exit function "test_2" ->   |  <- 17
+ 4:         Access variable R|<local>/x| -> 5  |  <- 3
+ 5:         Const: Null(null) -> 6  |  <- 4
+ 6:       Exit when branch condition -> 7, 11  |  <- 5
+ 7:         Enter block -> 8  |  <- 6
+ 8:           Access variable R|<local>/x| -> 9  |  <- 7
+ 9:         Exit block -> 10  |  <- 8
+10:       Exit when branch result -> 17  |  <- 9
+11:       Enter when branch condition "else" -> 12  |  <- 6
+12:       Exit when branch condition -> 13  |  <- 11
+13:         Enter block -> 14  |  <- 12
+14:           Access variable R|<local>/x| -> 15  |  <- 13
+15:         Exit block -> 16  |  <- 14
+16:       Exit when branch result -> 17  |  <- 15
+17:     Exit when -> 18  |  <- 10, 16
+18:     Variable declaration: lval y: R|kotlin/Int?| -> 19  |  <- 17
+19:     Access variable R|<local>/y| -> 20  |  <- 18
+20:     Function call: R|<local>/y|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 21  |  <- 19
+21:   Exit block -> 22  |  <- 20
+22: Exit function "test_2" ->   |  <- 21
 
  0: Enter function "test_3" -> 1
  1:   Enter block -> 2  |  <- 0
  2:     Enter while loop -> 3  |  <- 1
- 3:       Enter loop condition -> 4  |  <- 2, 12[DEAD]
+ 3:       Enter loop condition -> 4  |  <- 2, 13[DEAD]
  4:         Const: Boolean(true) -> 5  |  <- 3
- 5:       Exit loop condition -> 6, 13  |  <- 4
+ 5:       Exit loop condition -> 6, 14  |  <- 4
  6:       Enter loop block -> 7  |  <- 5
  7:         Enter block -> 8  |  <- 6
- 8:           Type operator: "x as Int" -> 9  |  <- 7
- 9:           Jump: break@@@[Boolean(true)]  -> 10[DEAD], 13  |  <- 8
-10:           Stub[DEAD] -> 11  |  <- 9
-11:         Exit block[DEAD] -> 12  |  <- 10
-12:       Exit loop block[DEAD] -> 3  |  <- 11
-13:     Exit whileloop -> 14  |  <- 5, 9
-14:     Function call: R|<local>/x|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 15  |  <- 13
-15:   Exit block -> 16  |  <- 14
-16: Exit function "test_3" ->   |  <- 15
+ 8:           Access variable R|<local>/x| -> 9  |  <- 7
+ 9:           Type operator: "x as Int" -> 10  |  <- 8
+10:           Jump: break@@@[Boolean(true)]  -> 11[DEAD], 14  |  <- 9
+11:           Stub[DEAD] -> 12  |  <- 10
+12:         Exit block[DEAD] -> 13  |  <- 11
+13:       Exit loop block[DEAD] -> 3  |  <- 12
+14:     Exit whileloop -> 15  |  <- 5, 10
+15:     Access variable R|<local>/x| -> 16  |  <- 14
+16:     Function call: R|<local>/x|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 17  |  <- 15
+17:   Exit block -> 18  |  <- 16
+18: Exit function "test_3" ->   |  <- 17
 
  0: Enter function "test_4" -> 1
  1:   Enter block -> 2  |  <- 0
  2:     Enter do-while loop -> 3  |  <- 1
- 3:       Enter loop block -> 4  |  <- 2, 12[DEAD]
+ 3:       Enter loop block -> 4  |  <- 2, 13[DEAD]
  4:         Enter block -> 5  |  <- 3
- 5:           Type operator: "x as int" -> 6  |  <- 4
- 6:           Jump: break@@@[Boolean(true)]  -> 7[DEAD], 13[DEAD]  |  <- 5
- 7:           Stub[DEAD] -> 8  |  <- 6
- 8:         Exit block[DEAD] -> 9  |  <- 7
- 9:       Exit loop block[DEAD] -> 10  |  <- 8
-10:       Enter loop condition[DEAD] -> 11  |  <- 9
-11:         Const: Boolean(true)[DEAD] -> 12  |  <- 10
-12:       Exit loop condition[DEAD] -> 3, 13  |  <- 11
-13:     Exit do-whileloop[DEAD] -> 14  |  <- 6, 12
-14:     Function call: R|<local>/x|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#()[DEAD] -> 15  |  <- 13
-15:   Exit block[DEAD] -> 16  |  <- 14
-16: Exit function "test_4"[DEAD] ->   |  <- 15
+ 5:           Access variable R|<local>/x| -> 6  |  <- 4
+ 6:           Type operator: "x as int" -> 7  |  <- 5
+ 7:           Jump: break@@@[Boolean(true)]  -> 8[DEAD], 14[DEAD]  |  <- 6
+ 8:           Stub[DEAD] -> 9  |  <- 7
+ 9:         Exit block[DEAD] -> 10  |  <- 8
+10:       Exit loop block[DEAD] -> 11  |  <- 9
+11:       Enter loop condition[DEAD] -> 12  |  <- 10
+12:         Const: Boolean(true)[DEAD] -> 13  |  <- 11
+13:       Exit loop condition[DEAD] -> 3, 14  |  <- 12
+14:     Exit do-whileloop[DEAD] -> 15  |  <- 7, 13
+15:     Access variable R|<local>/x|[DEAD] -> 16  |  <- 14
+16:     Function call: R|<local>/x|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#()[DEAD] -> 17  |  <- 15
+17:   Exit block[DEAD] -> 18  |  <- 16
+18: Exit function "test_4"[DEAD] ->   |  <- 17
 

@@ -22,15 +22,7 @@ FILE: when.kt
     }
     public final fun test_2(x: R|kotlin/Any?|): R|kotlin/Unit| {
         when () {
-            when () {
-                (R|<local>/x| is R|A|) ->  {
-                    (R|<local>/x| is R|B|)
-                }
-                else ->  {
-                    Boolean(false)
-                }
-            }
-             ->  {
+            (R|<local>/x| is R|A|) && (R|<local>/x| is R|B|) ->  {
                 (R|<local>/x| is R|A|)
             }
             else ->  {

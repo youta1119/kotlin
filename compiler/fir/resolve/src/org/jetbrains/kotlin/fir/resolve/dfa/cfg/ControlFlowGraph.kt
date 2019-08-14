@@ -45,8 +45,10 @@ class BlockExitNode(owner: ControlFlowGraph, override val fir: FirBlock) : CFGNo
 class WhenEnterNode(owner: ControlFlowGraph, override val fir: FirWhenExpression) : CFGNode<FirWhenExpression>(owner)
 class WhenExitNode(owner: ControlFlowGraph, override val fir: FirWhenExpression) : CFGNode<FirWhenExpression>(owner)
 class WhenBranchConditionEnterNode(owner: ControlFlowGraph, override val fir: FirWhenBranch) : CFGNode<FirWhenBranch>(owner)
-class WhenBranchConditionExitNode(owner: ControlFlowGraph, override val fir: FirWhenBranch, val condition: Condition) :
-    CFGNode<FirWhenBranch>(owner)
+class WhenBranchConditionExitNode(owner: ControlFlowGraph, override val fir: FirWhenBranch) :
+    CFGNode<FirWhenBranch>(owner) {
+    lateinit var condition: Condition
+}
 
 class WhenBranchResultExitNode(owner: ControlFlowGraph, override val fir: FirWhenBranch) : CFGNode<FirWhenBranch>(owner)
 
@@ -115,8 +117,8 @@ fun ControlFlowGraph.createLoopEnterNode(loop: FirLoop): LoopEnterNode = LoopEnt
 fun ControlFlowGraph.createTypeOperatorCallNode(fir: FirTypeOperatorCall): TypeOperatorCallNode =
     TypeOperatorCallNode(this, fir).also(this::init)
 
-fun ControlFlowGraph.createWhenBranchConditionExitNode(fir: FirWhenBranch, condition: Condition): WhenBranchConditionExitNode =
-    WhenBranchConditionExitNode(this, fir, condition).also(this::init)
+fun ControlFlowGraph.createWhenBranchConditionExitNode(fir: FirWhenBranch): WhenBranchConditionExitNode =
+    WhenBranchConditionExitNode(this, fir).also(this::init)
 
 fun ControlFlowGraph.createJumpNode(fir: FirJump<*>): JumpNode = JumpNode(this, fir).also(this::init)
 

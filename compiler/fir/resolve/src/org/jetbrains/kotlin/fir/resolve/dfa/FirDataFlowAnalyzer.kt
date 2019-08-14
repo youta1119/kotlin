@@ -7,14 +7,11 @@ package org.jetbrains.kotlin.fir.resolve.dfa
 
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirResolvedCallableReference
-import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.expressions.*
-import org.jetbrains.kotlin.fir.render
 import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
-import org.jetbrains.kotlin.fir.resolve.transformers.resultType
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.types.*
 
@@ -23,20 +20,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     private val context: ConeTypeContext get() = inferenceComponents.ctx as ConeTypeContext
     private val factSystem: FactSystem = FactSystem(context)
 
-    private val graphs: Stack<ControlFlowGraph> = stackOf()
-    private val graph: ControlFlowGraph get() = graphs.top()
-
-    private val lexicalScopes: Stack<Stack<CFGNode<*>>> = stackOf()
-    private val lastNodes: Stack<CFGNode<*>> get() = lexicalScopes.top()
-
-    private val whenExitNodes: NodeStorage<FirWhenExpression, WhenExitNode> = NodeStorage()
-    private val functionExitNodes: NodeStorage<FirFunction, FunctionExitNode> = NodeStorage()
-    private val loopEnterNodes: NodeStorage<FirElement, CFGNode<FirElement>> = NodeStorage()
-    private val loopExitNodes: NodeStorage<FirLoop, LoopExitNode> = NodeStorage()
-
-    private val tryExitNodes: NodeStorage<FirTryExpression, TryExpressionExitNode> = NodeStorage()
-    private val catchNodeStorages: Stack<NodeStorage<FirCatch, CatchClauseEnterNode>> = stackOf()
-    private val catchNodeStorage: NodeStorage<FirCatch, CatchClauseEnterNode> get() = catchNodeStorages.top()
+    private val graphBuilder = ControlFlowGraphBuilder()
 
     private val variableStorage = DataFlowVariableStorage()
     private val edges = mutableMapOf<CFGNode<*>, Facts>().withDefault { Facts.EMPTY }
@@ -45,7 +29,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     private val conditionVariables: Stack<DataFlowVariable> = stackOf()
 
     fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
-        val lastNode = lastNodes.top()
+        val lastNode = graphBuilder.lastNode
         val fir = (((qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol) as? FirBasedSymbol<*>)?.fir
             ?: return null
         val types = factSystem.squashExactTypes(lastNode.facts[fir]).takeIf { it.isNotEmpty() } ?: return null
@@ -63,9 +47,7 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
 
     fun enterNamedFunction(namedFunction: FirNamedFunction) {
         variableStorage.reset()
-        graphs.push(ControlFlowGraph())
-        lexicalScopes.push(stackOf(graph.createFunctionEnterNode(namedFunction)))
-        functionExitNodes.push(graph.createFunctionExitNode(namedFunction))
+        graphBuilder.enterNamedFunction(namedFunction)
 
         for (valueParameter in namedFunction.valueParameters) {
             variableStorage.createNewRealVariable(valueParameter)
@@ -73,198 +55,121 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     }
 
     fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
-        val exitNode = functionExitNodes.pop()
-        addEdge(lastNodes.pop(), exitNode)
-        assert(exitNode.fir == namedFunction)
-        return graphs.pop()
+        return graphBuilder.exitNamedFunction(namedFunction)
     }
 
     // ----------------------------------- Block -----------------------------------
 
     fun enterBlock(block: FirBlock) {
-        addNewSimpleNode(graph.createBlockEnterNode(block))
+        graphBuilder.enterBlock(block)
     }
 
     fun exitBlock(block: FirBlock) {
-        addNewSimpleNode(graph.createBlockExitNode(block))
+        graphBuilder.exitBlock(block)
     }
 
     // ----------------------------------- Type operator call -----------------------------------
 
     fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {
-        val node = graph.createTypeOperatorCallNode(typeOperatorCall)
-        addNewSimpleNode(node)
+        graphBuilder.exitTypeOperatorCall(typeOperatorCall)
     }
 
     // ----------------------------------- Jump -----------------------------------
 
     fun exitJump(jump: FirJump<*>) {
-        val node = graph.createJumpNode(jump)
-        val nextNode = when (jump) {
-            is FirReturnExpression -> functionExitNodes[jump.target.labeledElement]
-            is FirContinueExpression -> loopEnterNodes[jump.target.labeledElement]
-            is FirBreakExpression -> loopExitNodes[jump.target.labeledElement]
-            else -> throw IllegalArgumentException("Unknown jump type: ${jump.render()}")
-        }
-        addNodeWithJump(node, nextNode)
+        graphBuilder.exitJump(jump)
     }
 
     // ----------------------------------- When -----------------------------------
 
     fun enterWhenExpression(whenExpression: FirWhenExpression) {
-        addNewSimpleNode(graph.createWhenEnterNode(whenExpression))
-        whenExitNodes.push(graph.createWhenExitNode(whenExpression))
+        graphBuilder.enterWhenExpression(whenExpression)
     }
 
     fun enterWhenBranchCondition(whenBranch: FirWhenBranch) {
-        addNewSimpleNode(graph.createWhenBranchConditionEnterNode(whenBranch))
-
+        graphBuilder.enterWhenBranchCondition(whenBranch)
         conditionVariables.push(variableStorage.createNewSyntheticVariable(whenBranch.condition))
     }
 
     fun exitWhenBranchCondition(whenBranch: FirWhenBranch) {
+        val node = graphBuilder.exitWhenBranchCondition(whenBranch)
+
         val conditionVariable = conditionVariables.pop()
         val trueCondition = BooleanCondition(conditionVariable, true)
-
-        val node = graph.createWhenBranchConditionExitNode(whenBranch, trueCondition)
-        addNewSimpleNode(node)
-        // put exit branch condition node twice so we can refer it after exit from when expression
-        lastNodes.push(node)
+        node.condition = trueCondition
     }
 
     fun exitWhenBranchResult(whenBranch: FirWhenBranch) {
-        val node = graph.createWhenBranchResultExitNode(whenBranch)
-        addEdge(lastNodes.pop(), node)
-        val whenExitNode = whenExitNodes.top()
-        addEdge(node, whenExitNode, propagateDeadness = false)
+        graphBuilder.exitWhenBranchResult(whenBranch)
     }
 
     fun exitWhenExpression(whenExpression: FirWhenExpression) {
-        // exit from last condition node still on stack
-        // we should remove it
-        require(lastNodes.pop() is WhenBranchConditionExitNode)
-        val whenExitNode = whenExitNodes.pop()
+        val whenExitNode = graphBuilder.exitWhenExpression(whenExpression)
         intersectFactsFromPreviousNodes(whenExitNode)
-        lastNodes.push(whenExitNode)
     }
 
     // ----------------------------------- While Loop -----------------------------------
 
     fun enterWhileLoop(loop: FirLoop) {
-        addNewSimpleNode(graph.createLoopEnterNode(loop))
-        val node = graph.createLoopConditionEnterNode(loop)
-        addNewSimpleNode(node)
-        // put conditional node twice so we can refer it after exit from loop block
-        lastNodes.push(node)
-        loopEnterNodes.push(node)
-        loopExitNodes.push(graph.createLoopExitNode(loop))
+        graphBuilder.enterWhileLoop(loop)
     }
 
     fun exitWhileLoopCondition(loop: FirLoop) {
-        val conditionExitNode = graph.createLoopConditionExitNode(loop)
-        addNewSimpleNode(conditionExitNode)
-        // TODO: here we can check that condition is always true
-        addEdge(conditionExitNode, loopExitNodes.top())
-        addNewSimpleNode(graph.createLoopBlockEnterNode(loop))
+        graphBuilder.exitWhileLoopCondition(loop)
     }
 
     fun exitWhileLoop(loop: FirLoop) {
-        loopEnterNodes.pop()
-        val loopBlockExitNode = graph.createLoopBlockExitNode(loop)
-        addEdge(lastNodes.pop(), loopBlockExitNode)
-        val conditionEnterNode = lastNodes.pop()
-        require(conditionEnterNode is LoopConditionEnterNode)
-        addEdge(loopBlockExitNode, conditionEnterNode, propagateDeadness = false)
-        lastNodes.push(loopExitNodes.pop())
+        graphBuilder.exitWhileLoop(loop)
     }
 
     // ----------------------------------- Do while Loop -----------------------------------
 
     fun enterDoWhileLoop(loop: FirLoop) {
-        addNewSimpleNode(graph.createLoopEnterNode(loop))
-        val blockEnterNode = graph.createLoopBlockEnterNode(loop)
-        addNewSimpleNode(blockEnterNode)
-        // put block enter node twice so we can refer it after exit from loop condition
-        lastNodes.push(blockEnterNode)
-        loopEnterNodes.push(blockEnterNode)
-        loopExitNodes.push(graph.createLoopExitNode(loop))
+        graphBuilder.enterDoWhileLoop(loop)
     }
 
     fun enterDoWhileLoopCondition(loop: FirLoop) {
-        addNewSimpleNode(graph.createLoopBlockExitNode(loop))
-        addNewSimpleNode(graph.createLoopConditionEnterNode(loop))
+        graphBuilder.enterDoWhileLoopCondition(loop)
     }
 
     fun exitDoWhileLoop(loop: FirLoop) {
-        loopEnterNodes.pop()
-        val conditionExitNode = graph.createLoopConditionExitNode(loop)
-        // TODO: here we can check that condition is always false
-        addEdge(lastNodes.pop(), conditionExitNode)
-        val blockEnterNode = lastNodes.pop()
-        require(blockEnterNode is LoopBlockEnterNode)
-        addEdge(conditionExitNode, blockEnterNode, propagateDeadness = false)
-        val loopExit = loopExitNodes.pop()
-        addEdge(conditionExitNode, loopExit)
-        lastNodes.push(loopExit)
+        graphBuilder.exitDoWhileLoop(loop)
     }
 
     // ----------------------------------- Try-catch-finally -----------------------------------
 
     fun enterTryExpression(tryExpression: FirTryExpression) {
-        catchNodeStorages.push(NodeStorage())
-        addNewSimpleNode(graph.createTryExpressionEnterNode(tryExpression))
-        val tryNode = graph.createTryMainBlockEnterNode(tryExpression)
-        addNewSimpleNode(tryNode)
-        addEdge(tryNode, functionExitNodes.top())
-        tryExitNodes.push(graph.createTryExpressionExitNode(tryExpression))
-
-        for (catch in tryExpression.catches) {
-            val catchNode = graph.createCatchClauseEnterNode(catch)
-            catchNodeStorage.push(catchNode)
-            addEdge(tryNode, catchNode)
-            addEdge(catchNode, functionExitNodes.top())
-        }
-
-        // TODO: add finally
+        graphBuilder.enterTryExpression(tryExpression)
     }
 
     fun exitTryMainBlock(tryExpression: FirTryExpression) {
-        val node = graph.createTryMainBlockExitNode(tryExpression)
-        addEdge(lastNodes.pop(), node)
-        addEdge(node, tryExitNodes.top())
+        graphBuilder.exitTryMainBlock(tryExpression)
     }
 
     fun enterCatchClause(catch: FirCatch) {
-        lastNodes.push(catchNodeStorage[catch])
+        graphBuilder.enterCatchClause(catch)
     }
 
     fun exitCatchClause(catch: FirCatch) {
-        val node = graph.createCatchClauseExitNode(catch)
-        addEdge(lastNodes.pop(), node)
-        addEdge(node, tryExitNodes.top(), propagateDeadness = false)
+        graphBuilder.exitCatchClause(catch)
     }
 
-    fun enterFinallyBlock(tryExpression: FirTryExpression) { /*TODO*/ }
+    fun enterFinallyBlock(tryExpression: FirTryExpression) {
+        graphBuilder.enterFinallyBlock(tryExpression)
+    }
 
-    fun exitFinallyBlock(tryExpression: FirTryExpression) { /*TODO*/ }
+    fun exitFinallyBlock(tryExpression: FirTryExpression) {
+        graphBuilder.exitFinallyBlock(tryExpression)
+    }
 
     fun exitTryExpression(tryExpression: FirTryExpression) {
-        catchNodeStorages.pop()
-        val node = tryExitNodes.pop()
-        node.markAsDeadIfNecessary()
-        lastNodes.push(node)
+        graphBuilder.exitTryExpression(tryExpression)
     }
 
     // ----------------------------------- Resolvable call -----------------------------------
 
     fun exitQualifiedAccessExpression(qualifiedAccessExpression: FirQualifiedAccessExpression) {
-        val returnsNothing = qualifiedAccessExpression.resultType.isNothing
-        val node = graph.createQualifiedAccessNode(qualifiedAccessExpression, returnsNothing)
-        if (returnsNothing) {
-            addNodeThatReturnsNothing(node)
-        } else {
-            addNewSimpleNode(node)
-        }
+        graphBuilder.exitQualifiedAccessExpression(qualifiedAccessExpression)
     }
 
     fun enterFunctionCall(functionCall: FirFunctionCall) {
@@ -272,65 +177,26 @@ class FirDataFlowAnalyzer(transformer: FirBodyResolveTransformer) : BodyResolveC
     }
 
     fun exitFunctionCall(functionCall: FirFunctionCall) {
-        val returnsNothing = functionCall.resultType.isNothing
-        val node = graph.createFunctionCallNode(functionCall, returnsNothing)
-        if (returnsNothing) {
-            addNodeThatReturnsNothing(node)
-        } else {
-            addNewSimpleNode(node)
-        }
+        graphBuilder.exitFunctionCall(functionCall)
     }
 
     fun exitConstExpresion(constExpression: FirConstExpression<*>) {
-        addNewSimpleNode(graph.createConstExpressionNode(constExpression))
+        graphBuilder.exitConstExpresion(constExpression)
     }
 
     fun exitVariableDeclaration(variable: FirVariable<*>) {
-        addNewSimpleNode(graph.createVariableDeclarationNode(variable))
+        graphBuilder.exitVariableDeclaration(variable)
     }
 
     fun exitVariableAssignment(assignment: FirVariableAssignment) {
-        addNewSimpleNode(graph.createVariableAssignmentNode(assignment))
+        graphBuilder.exitVariableAssignment(assignment)
     }
 
     fun exitThrowExceptionNode(throwExpression: FirThrowExpression) {
-        val node = graph.createThrowExceptionNode(throwExpression)
-        addNodeThatReturnsNothing(node)
+        graphBuilder.exitThrowExceptionNode(throwExpression)
     }
 
     // -------------------------------------------------------------------------------------------------------------------------
-
-    private fun CFGNode<*>.markAsDeadIfNecessary() {
-        isDead = previousNodes.all { it.isDead }
-    }
-
-    private fun addNodeThatReturnsNothing(node: CFGNode<*>) {
-        addNodeWithJump(node, functionExitNodes.top())
-    }
-
-    private fun addNodeWithJump(node: CFGNode<*>, targetNode: CFGNode<*>) {
-        addEdge(lastNodes.pop(), node)
-        addEdge(node, targetNode)
-        val stub = graph.createStubNode()
-        addEdge(node, stub)
-        lastNodes.push(stub)
-    }
-
-    private fun addNewSimpleNode(newNode: CFGNode<*>): CFGNode<*> {
-        val oldNode = lastNodes.pop()
-        addEdge(oldNode, newNode)
-        lastNodes.push(newNode)
-        return oldNode
-    }
-
-    private fun addEdge(from: CFGNode<*>, to: CFGNode<*>, addInfo: Boolean = true, propagateDeadness: Boolean = true) {
-        if (propagateDeadness && from.isDead) {
-            to.isDead = true
-        }
-        from.followingNodes += to
-        to.previousNodes += from
-        if (addInfo) to.facts = outputEdges[from] ?: from.facts
-    }
 
     private fun intersectFactsFromPreviousNodes(node: CFGNode<*>) {
         node.facts = factSystem.foldFacts(node.previousNodes.map { outputEdges[it] ?: it.facts })

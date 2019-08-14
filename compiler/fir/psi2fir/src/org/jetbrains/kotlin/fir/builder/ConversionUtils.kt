@@ -158,21 +158,12 @@ fun FirExpression.generateNotNullOrOther(
 
 fun FirExpression.generateLazyLogicalOperation(
     other: FirExpression, isAnd: Boolean, basePsi: KtElement?
-): FirWhenExpression {
-    val terminalExpression = FirConstExpressionImpl(psi, IrConstKind.Boolean, !isAnd)
-    val terminalBlock = FirSingleExpressionBlock(terminalExpression)
-    val otherBlock = FirSingleExpressionBlock(other)
-    return FirWhenExpressionImpl(basePsi).apply {
-        branches += FirWhenBranchImpl(
-            psi, this@generateLazyLogicalOperation,
-            if (isAnd) otherBlock else terminalBlock
-        )
-        branches += FirWhenBranchImpl(
-            other.psi, FirElseIfTrueCondition(psi),
-            if (isAnd) terminalBlock else otherBlock
-        )
-        typeRef = FirImplicitBooleanTypeRef(basePsi)
-    }
+): FirBinaryLogicExpression {
+    val kind = if (isAnd)
+        FirBinaryLogicExpression.OperationKind.AND
+    else
+        FirBinaryLogicExpression.OperationKind.OR
+    return FirBinaryLogicExpressionImpl(basePsi, this, other, kind)
 }
 
 internal fun KtWhenCondition.toFirWhenCondition(

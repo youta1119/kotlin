@@ -47,6 +47,7 @@ open class FirBodyResolveTransformer(
     final override val returnTypeCalculator: ReturnTypeCalculator = ReturnTypeCalculatorWithJump(session, scopeSession)
     final override val labels: SetMultimap<Name, ConeKotlinType> = LinkedHashMultimap.create()
     final override val noExpectedType = FirImplicitTypeRefImpl(null)
+    private val booleanType = FirImplicitBooleanTypeRef(null)
 
     final override val symbolProvider = session.service<FirSymbolProvider>()
     val scopes = mutableListOf<FirScope>()
@@ -785,6 +786,15 @@ open class FirBodyResolveTransformer(
             .transformBlock(this, data).also(dataFlowAnalyzer::enterDoWhileLoopCondition)
             .transformCondition(this, data).also(dataFlowAnalyzer::exitDoWhileLoop)
             .transformRestChildren(this, data).compose()
+    }
+
+    override fun transformBinaryLogicExpression(
+        binaryLogicExpression: FirBinaryLogicExpression,
+        data: Any?
+    ): CompositeTransformResult<FirStatement> {
+        return super.transformBinaryLogicExpression(binaryLogicExpression, booleanType).also {
+            (it.single as FirBinaryLogicExpression).resultType = booleanType
+        }
     }
 
     // ----------------------- Util functions -----------------------

@@ -1223,4 +1223,37 @@ internal class Fir2IrVisitor(
         }
         return super.visitResolvedQualifier(resolvedQualifier, data)
     }
+
+    override fun visitBinaryLogicExpression(binaryLogicExpression: FirBinaryLogicExpression, data: Any?): IrElement {
+        return binaryLogicExpression.convertWithOffsets<IrElement> { startOffset, endOffset ->
+            val leftOperand = binaryLogicExpression.leftOperand.accept(this, data) as IrExpression
+            val rightOperand = binaryLogicExpression.rightOperand.accept(this, data) as IrExpression
+            when (binaryLogicExpression.kind) {
+                FirBinaryLogicExpression.OperationKind.AND -> {
+                    IrIfThenElseImpl(startOffset, endOffset, irBuiltIns.booleanType, IrStatementOrigin.ANDAND).apply {
+                        branches.add(IrBranchImpl(leftOperand, rightOperand))
+                        branches.add(elseBranch(constFalse(rightOperand.startOffset, rightOperand.endOffset)))
+                    }
+                }
+                FirBinaryLogicExpression.OperationKind.OR -> {
+                    IrIfThenElseImpl(startOffset, endOffset, irBuiltIns.booleanType, IrStatementOrigin.OROR).apply {
+                        branches.add(IrBranchImpl(leftOperand, constTrue(leftOperand.startOffset, leftOperand.endOffset)))
+                        branches.add(elseBranch(rightOperand))
+                    }
+                }
+            }
+        }
+    }
+
+//    private fun elseBranch(elseExpr: IrExpression): IrElseBranch {
+//        val startOffset = elseExpr.startOffset
+//        val endOffset = elseExpr.endOffset
+//        return IrElseBranchImpl(startOffset, endOffset, constTrue(startOffset, endOffset), elseExpr)
+//    }
+//
+//    private fun constTrue(startOffset: Int, endOffset: Int) =
+//        IrConstImpl.constTrue(startOffset, endOffset, irBuiltIns.booleanType)
+//
+//    private fun constFalse(startOffset: Int, endOffset: Int) =
+//        IrConstImpl.constFalse(startOffset, endOffset, irBuiltIns.booleanType)
 }

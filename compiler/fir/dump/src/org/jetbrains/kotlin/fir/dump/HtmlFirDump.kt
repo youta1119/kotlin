@@ -1237,9 +1237,16 @@ class HtmlFirDump internal constructor(private var linkResolver: FirLinkResolver
                 is FirTypeOperatorCall -> generate(expression)
                 is FirUncheckedNotNullCastImpl -> generate(expression)
                 is FirOperatorCall -> generate(expression)
+                is FirBinaryLogicExpression -> generate(expression)
                 else -> inlineUnsupported(expression)
             }
         }
+    }
+
+    private fun FlowContent.generate(binaryLogicExpression: FirBinaryLogicExpression) {
+        generate(binaryLogicExpression.leftOperand)
+        +" ${binaryLogicExpression.kind.token} "
+        generate(binaryLogicExpression.rightOperand)
     }
 
     private fun FlowContent.generate(qualifiedAccessExpression: FirQualifiedAccessExpression) {

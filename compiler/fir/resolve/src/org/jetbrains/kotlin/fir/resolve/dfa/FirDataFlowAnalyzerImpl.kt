@@ -16,7 +16,6 @@ import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.types.*
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
-import javax.xml.crypto.Data
 
 class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataFlowAnalyzer(), BodyResolveComponents by transformer {
     private val context: DataFlowInferenceContext get() = inferenceComponents.ctx as DataFlowInferenceContext
@@ -59,7 +58,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
         val previousNode = node.usefulPreviousNodes.singleOrNull() as? WhenBranchConditionExitNode
         if (previousNode != null) {
-            node.flow = logicSystem.approveFact(previousNode.trueCondition, node.flow)
+            node.flow = logicSystem.approveFactsInsideFlow(previousNode.trueCondition, node.flow)
         }
         node.flow.freeze()
     }
@@ -141,7 +140,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         val node = graphBuilder.enterWhenBranchCondition(whenBranch).also { passFlow(it, false) }
         val previousNode = node.previousNodes.single()
         if (previousNode is WhenBranchConditionExitNode) {
-            node.flow = logicSystem.approveFact(previousNode.falseCondition, node.flow)
+            node.flow = logicSystem.approveFactsInsideFlow(previousNode.falseCondition, node.flow)
         }
         node.flow.freeze()
     }
@@ -268,7 +267,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     // ----------------------------------- Boolean operators -----------------------------------
 
     override fun enterBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression) {
-        graphBuilder.enterBinaryAnd(binaryLogicExpression)
+        graphBuilder.enterBinaryAnd(binaryLogicExpression).also(this::passFlow)
     }
 
     override fun exitLeftBinaryAndArgument(binaryLogicExpression: FirBinaryLogicExpression) {
@@ -276,7 +275,31 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     }
 
     override fun exitBinaryAnd(binaryLogicExpression: FirBinaryLogicExpression) {
-        graphBuilder.exitBinaryAnd(binaryLogicExpression)
+        val node = graphBuilder.exitBinaryAnd(binaryLogicExpression).also { passFlow(it, false) }
+        val leftVariable = getVariable(binaryLogicExpression.leftOperand)
+        val rightVariable = getVariable(binaryLogicExpression.rightOperand)
+
+        val flowFromRight = node.rightOperandNode.flow
+        val flow = node.flow
+
+        val andVariable = getVariable(binaryLogicExpression)
+
+        val leftIsTrue = logicSystem.approveFact(Condition(leftVariable, ConditionOperator.Eq, ConditionValue.True), flowFromRight)
+        val leftIsFalse = logicSystem.approveFact(Condition(leftVariable, ConditionOperator.Eq, ConditionValue.False), flowFromRight)
+        val rightIsTrue = logicSystem.approveFact(Condition(rightVariable, ConditionOperator.Eq, ConditionValue.True), flowFromRight)
+        val rightIsFalse = logicSystem.approveFact(Condition(rightVariable, ConditionOperator.Eq, ConditionValue.False), flowFromRight)
+
+        logicSystem.andForVerifiedFacts(leftIsTrue, rightIsTrue)?.let {
+            for ((variable, info) in it) {
+                flow.addNotApprovedFact(andVariable, UnapprovedFirDataFlowInfo(ConditionRHS(ConditionOperator.Eq, ConditionValue.True), variable, info))
+            }
+        }
+        logicSystem.orForVerifiedFacts(leftIsFalse, rightIsFalse)?.let {
+            for ((variable, info) in it) {
+                flow.addNotApprovedFact(andVariable, UnapprovedFirDataFlowInfo(ConditionRHS(ConditionOperator.Eq, ConditionValue.False), variable, info))
+            }
+        }
+        node.flow = removeVariable(leftVariable, flow).let { removeVariable(rightVariable, it) }.also { it.freeze() }
     }
 
     override fun enterBinaryOr(binaryLogicExpression: FirBinaryLogicExpression) {

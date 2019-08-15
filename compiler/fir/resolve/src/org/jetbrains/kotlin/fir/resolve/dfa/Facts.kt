@@ -214,7 +214,31 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
         return DataFlowStatementsStorage(approvedFacts, notApprovedFacts)
     }
 
-    fun approveFact(proof: Condition, flow: DataFlowStatementsStorage): DataFlowStatementsStorage {
+    fun andForVerifiedFacts(left: Map<DataFlowVariable, FirDataFlowInfo>?, right: Map<DataFlowVariable, FirDataFlowInfo>?): Map<DataFlowVariable, FirDataFlowInfo>? {
+        if (left == null) return right
+        if (right == null) return left
+
+        val map = mutableMapOf<DataFlowVariable, FirDataFlowInfo>()
+        for (variable in left.keys.union(right.keys)) {
+            val leftInfo = left[variable]
+            val rightInfo = right[variable]
+            map[variable] = context.and(listOfNotNull(leftInfo, rightInfo))
+        }
+        return map
+    }
+
+    fun orForVerifiedFacts(left: Map<DataFlowVariable, FirDataFlowInfo>?, right: Map<DataFlowVariable, FirDataFlowInfo>?): Map<DataFlowVariable, FirDataFlowInfo>? {
+        if (left == null || right == null) return null
+        val map = mutableMapOf<DataFlowVariable, FirDataFlowInfo>()
+        for (variable in left.keys.intersect(right.keys)) {
+            val leftInfo = left[variable]!!
+            val rightInfo = right[variable]!!
+            map[variable] = context.or(listOf(leftInfo, rightInfo))
+        }
+        return map
+    }
+
+    fun approveFactsInsideFlow(proof: Condition, flow: DataFlowStatementsStorage): DataFlowStatementsStorage {
         val notApprovedFacts: Set<UnapprovedFirDataFlowInfo> = flow.notApprovedFacts[proof.variable]
         if (notApprovedFacts.isEmpty()) {
             return flow
@@ -236,5 +260,19 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
             flow.approvedFacts[variable] = context.and(infos)
         }
         return flow
+    }
+
+    fun approveFact(proof: Condition, flow: DataFlowStatementsStorage): Map<DataFlowVariable, FirDataFlowInfo>? {
+        val notApprovedFacts: Set<UnapprovedFirDataFlowInfo> = flow.notApprovedFacts[proof.variable]
+        if (notApprovedFacts.isEmpty()) {
+            return emptyMap()
+        }
+        val newFacts = HashMultimap.create<DataFlowVariable, FirDataFlowInfo>()
+        notApprovedFacts.forEach {
+            if (it.condition == proof.rhs) {
+                newFacts.put(it.variable, it.info)
+            }
+        }
+        return newFacts.asMap().mapValues { (_, infos) -> context.and(infos) }
     }
 }

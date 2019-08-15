@@ -13,38 +13,10 @@ FILE: multipleConditions.kt
     }
     public final fun test_1(x: R|kotlin/Any|): R|kotlin/Unit| {
         when () {
-            when () {
-                (R|<local>/x| is R|B|) ->  {
-                    (R|<local>/x| is R|C|)
-                }
-                else ->  {
-                    Boolean(false)
-                }
-            }
-             ->  {
-                R|<local>/x|.<Unresolved name: foo>#()
-                R|<local>/x|.<Unresolved name: bar>#()
-                R|<local>/x|.<Unresolved name: baz>#()
-            }
-            else ->  {
-            }
-        }
-
-    }
-    public final fun test_2(x: R|kotlin/Any|): R|kotlin/Unit| {
-        when () {
-            when () {
-                (R|<local>/x| is R|B|) ->  {
-                    Boolean(true)
-                }
-                else ->  {
-                    (R|<local>/x| is R|C|)
-                }
-            }
-             ->  {
-                R|<local>/x|.<Unresolved name: foo>#()
-                R|<local>/x|.<Unresolved name: bar>#()
-                R|<local>/x|.<Unresolved name: baz>#()
+            (R|<local>/x| is R|B|) && (R|<local>/x| is R|C|) ->  {
+                R|<local>/x|.R|/A.foo|()
+                R|<local>/x|.R|/B.bar|()
+                R|<local>/x|.R|/C.baz|()
             }
             else ->  {
             }

@@ -429,7 +429,7 @@ open class FirBodyResolveTransformer(
                 throw RuntimeException("While resolving call ${functionCall.render()}", e)
             }
 
-        dataFlowAnalyzer.exitFunctionCall(functionCall)
+        dataFlowAnalyzer.exitFunctionCall(completeInference)
         return completeInference.compose()
 
     }

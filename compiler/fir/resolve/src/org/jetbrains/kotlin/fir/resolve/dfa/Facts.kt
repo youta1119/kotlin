@@ -24,10 +24,21 @@ enum class ConditionValue(val token: String) {
     override fun toString(): String {
         return token
     }
+
+    fun invert(): ConditionValue? = when (this) {
+        True -> False
+        False -> True
+        else -> null
+    }
 }
 
 enum class ConditionOperator(val token: String) {
     Eq("=="), NotEq("!=");
+
+    fun invert(): ConditionOperator = when (this) {
+        Eq -> NotEq
+        NotEq -> Eq
+    }
 
     override fun toString(): String {
         return token
@@ -35,6 +46,15 @@ enum class ConditionOperator(val token: String) {
 }
 
 data class ConditionRHS(val operator: ConditionOperator, val value: ConditionValue) {
+    fun invert(): ConditionRHS {
+        val newValue = value.invert()
+        return if (newValue != null) {
+            ConditionRHS(operator, newValue)
+        } else {
+            ConditionRHS(operator.invert(), value)
+        }
+    }
+
     override fun toString(): String {
         return "$operator $value"
     }
@@ -60,6 +80,10 @@ data class UnapprovedFirDataFlowInfo(
     val variable: DataFlowVariable,
     val info: FirDataFlowInfo
 ) {
+    fun invert(): UnapprovedFirDataFlowInfo {
+        return UnapprovedFirDataFlowInfo(condition.invert(), variable, info)
+    }
+
     override fun toString(): String {
         return "$condition -> $variable: ${info.exactType?.render()}, ${info.exactNotType?.render()}"
     }
@@ -112,7 +136,7 @@ interface DataFlowInferenceContext : ConeTypeContext, TypeSystemCommonSuperTypes
 
 typealias Level = Int
 
-class DataFlowStatementsStorage(
+class Flow(
     val approvedFacts: MutableMap<DataFlowVariable, FirDataFlowInfo> = mutableMapOf(),
     val notApprovedFacts: HashMultimap<DataFlowVariable, UnapprovedFirDataFlowInfo> = HashMultimap.create(),
     state: State = State.Building
@@ -120,28 +144,37 @@ class DataFlowStatementsStorage(
     var state: State = state
         private set
 
+    val isFrozen: Boolean get() = state == State.Frozen
+
     fun freeze() {
         state = State.Frozen
     }
 
-    fun addApprovedFact(variable: DataFlowVariable, info: FirDataFlowInfo): DataFlowStatementsStorage {
-        if (state == State.Frozen) return copyForBuilding().addApprovedFact(variable, info)
+    fun addApprovedFact(variable: DataFlowVariable, info: FirDataFlowInfo): Flow {
+        if (isFrozen) return copyForBuilding().addApprovedFact(variable, info)
         approvedFacts.put(variable, info)
         return this
     }
 
-    fun addNotApprovedFact(variable: DataFlowVariable, info: UnapprovedFirDataFlowInfo): DataFlowStatementsStorage {
-        if (state == State.Frozen) return copyForBuilding().addNotApprovedFact(variable, info)
+    fun addNotApprovedFact(variable: DataFlowVariable, info: UnapprovedFirDataFlowInfo): Flow {
+        if (isFrozen) return copyForBuilding().addNotApprovedFact(variable, info)
         notApprovedFacts.put(variable, info)
         return this
     }
 
-    fun copyNotApprovedFacts(from: DataFlowVariable, to: DataFlowVariable): DataFlowStatementsStorage {
-        if (state == State.Frozen) copyForBuilding().copyNotApprovedFacts(from, to)
-        val facts = if (from.isSynthetic) {
+    fun copyNotApprovedFacts(
+        from: DataFlowVariable,
+        to: DataFlowVariable,
+        transform: ((UnapprovedFirDataFlowInfo) -> UnapprovedFirDataFlowInfo)? = null
+    ): Flow {
+        if (isFrozen) copyForBuilding().copyNotApprovedFacts(from, to)
+        var facts = if (from.isSynthetic) {
             notApprovedFacts.removeAll(from)
         } else {
             notApprovedFacts[from]
+        }
+        if (transform != null) {
+            facts = facts.mapTo(mutableSetOf(), transform)
         }
         notApprovedFacts.putAll(to, facts)
         return this
@@ -151,30 +184,38 @@ class DataFlowStatementsStorage(
         return approvedFacts[variable]
     }
 
-    fun removeVariableFromFlow(variable: DataFlowVariable): DataFlowStatementsStorage {
-        if (state == State.Frozen) return copyForBuilding().removeVariableFromFlow(variable)
+    fun removeVariableFromFlow(variable: DataFlowVariable): Flow {
+        if (isFrozen) return copyForBuilding().removeVariableFromFlow(variable)
         notApprovedFacts.removeAll(variable)
         approvedFacts.remove(variable)
         return this
     }
 
+    fun invertFactsForVariable(variable: DataFlowVariable, flow: Flow): Flow {
+        if (isFrozen) return copyForBuilding().invertFactsForVariable(variable, flow)
+        val facts = notApprovedFacts[variable]
+        if (facts.isEmpty()) return this
+        notApprovedFacts.replaceValues(variable, facts.mapTo(mutableSetOf()) { it.invert() })
+        return this
+    }
+
     companion object {
-        val EMPTY = DataFlowStatementsStorage(mutableMapOf(), HashMultimap.create(), State.Frozen)
+        val EMPTY = Flow(mutableMapOf(), HashMultimap.create(), State.Frozen)
     }
 
     enum class State {
         Building, Frozen
     }
 
-    fun copy(): DataFlowStatementsStorage {
+    fun copy(): Flow {
         return when (state) {
             State.Frozen -> this
             State.Building -> copyForBuilding()
         }
     }
 
-    fun copyForBuilding(): DataFlowStatementsStorage {
-        return DataFlowStatementsStorage(approvedFacts.toMutableMap(), notApprovedFacts.copy(), State.Building)
+    fun copyForBuilding(): Flow {
+        return Flow(approvedFacts.toMutableMap(), notApprovedFacts.copy(), State.Building)
     }
 }
 
@@ -183,11 +224,11 @@ private fun <K, V> HashMultimap<K, V>.copy(): HashMultimap<K, V> = HashMultimap.
 class LogicSystem(private val context: DataFlowInferenceContext) {
     private fun <E> List<Set<E>>.intersectSets(): Set<E> = takeIf { isNotEmpty() }?.reduce { x, y -> x.intersect(y) } ?: emptySet()
 
-    fun or(storages: Collection<DataFlowStatementsStorage>): DataFlowStatementsStorage {
+    fun or(storages: Collection<Flow>): Flow {
         storages.singleOrNull()?.let {
             return when (it.state) {
-                DataFlowStatementsStorage.State.Frozen -> it
-                DataFlowStatementsStorage.State.Building -> it.copy()
+                Flow.State.Frozen -> it
+                Flow.State.Building -> it.copy()
             }
         }
         val approvedFacts = mutableMapOf<DataFlowVariable, FirDataFlowInfo>().apply {
@@ -211,7 +252,7 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
                     }
                 }
         }
-        return DataFlowStatementsStorage(approvedFacts, notApprovedFacts)
+        return Flow(approvedFacts, notApprovedFacts)
     }
 
     fun andForVerifiedFacts(left: Map<DataFlowVariable, FirDataFlowInfo>?, right: Map<DataFlowVariable, FirDataFlowInfo>?): Map<DataFlowVariable, FirDataFlowInfo>? {
@@ -238,7 +279,7 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
         return map
     }
 
-    fun approveFactsInsideFlow(proof: Condition, flow: DataFlowStatementsStorage): DataFlowStatementsStorage {
+    fun approveFactsInsideFlow(proof: Condition, flow: Flow): Flow {
         val notApprovedFacts: Set<UnapprovedFirDataFlowInfo> = flow.notApprovedFacts[proof.variable]
         if (notApprovedFacts.isEmpty()) {
             return flow
@@ -262,7 +303,7 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
         return flow
     }
 
-    fun approveFact(proof: Condition, flow: DataFlowStatementsStorage): Map<DataFlowVariable, FirDataFlowInfo>? {
+    fun approveFact(proof: Condition, flow: Flow): Map<DataFlowVariable, FirDataFlowInfo>? {
         val notApprovedFacts: Set<UnapprovedFirDataFlowInfo> = flow.notApprovedFacts[proof.variable]
         if (notApprovedFacts.isEmpty()) {
             return emptyMap()

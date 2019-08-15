@@ -25,3 +25,9 @@ fun test_2(x: Any) {
         x.baz()
     }
 }
+
+fun test_3(x: Any) {
+    if (!(x !is A)) {
+        x.foo()
+    }
+}

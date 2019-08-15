@@ -10,21 +10,30 @@ import org.jetbrains.kotlin.fir.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
+import org.jetbrains.kotlin.fir.resolve.calls.FirNamedReferenceWithCandidate
 import org.jetbrains.kotlin.fir.resolve.dfa.ConditionValue.*
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
+import org.jetbrains.kotlin.fir.symbols.CallableId
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 import org.jetbrains.kotlin.fir.types.*
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 
 class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataFlowAnalyzer(), BodyResolveComponents by transformer {
+    companion object {
+        private val KOTLIN_BOOLEAN_NOT = CallableId(FqName("kotlin"), FqName("Boolean"), Name.identifier("not"))
+    }
+
     private val context: DataFlowInferenceContext get() = inferenceComponents.ctx as DataFlowInferenceContext
 
     private val graphBuilder = ControlFlowGraphBuilder()
     private val logicSystem = LogicSystem(context)
     private val variableStorage = DataFlowVariableStorage()
-    private val edges = mutableMapOf<CFGNode<*>, DataFlowStatementsStorage>().withDefault { DataFlowStatementsStorage.EMPTY }
+    private val edges = mutableMapOf<CFGNode<*>, Flow>().withDefault { Flow.EMPTY }
 
     override fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
         val symbol: FirBasedSymbol<*> = (qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol as? FirBasedSymbol<*> ?: return null
@@ -39,7 +48,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     override fun enterNamedFunction(namedFunction: FirNamedFunction) {
         variableStorage.reset()
         graphBuilder.enterNamedFunction(namedFunction).also {
-            it.flow = DataFlowStatementsStorage()
+            it.flow = Flow()
         }
 
         for (valueParameter in namedFunction.valueParameters) {
@@ -157,7 +166,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     override fun exitWhenBranchResult(whenBranch: FirWhenBranch) {
         val node = graphBuilder.exitWhenBranchResult(whenBranch).also { passFlow(it, false) }
         val conditionVariable = getVariable(whenBranch.condition)
-        node.flow = node.flow.removeVariable(conditionVariable)
+        node.flow = node.flow.removeSyntheticVariable(conditionVariable)
     }
 
     override fun exitWhenExpression(whenExpression: FirWhenExpression) {
@@ -240,7 +249,16 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     }
 
     override fun exitFunctionCall(functionCall: FirFunctionCall) {
-        graphBuilder.exitFunctionCall(functionCall).also(this::passFlow)
+        val node = graphBuilder.exitFunctionCall(functionCall).also { passFlow(it, false) }
+        if (functionCall.isBooleanNot()) {
+            exitBooleanNot(functionCall, node)
+            return
+        }
+    }
+
+    private fun FirFunctionCall.isBooleanNot(): Boolean {
+        val symbol = calleeReference.safeAs<FirResolvedCallableReference>()?.coneSymbol as? FirNamedFunctionSymbol ?: return false
+        return symbol.callableId == KOTLIN_BOOLEAN_NOT
     }
 
     override fun exitConstExpresion(constExpression: FirConstExpression<*>) {
@@ -300,7 +318,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
                 flow.addNotApprovedFact(andVariable, UnapprovedFirDataFlowInfo(ConditionRHS(ConditionOperator.Eq, False), variable, info))
             }
         }
-        node.flow = flow.removeVariable(leftVariable).removeVariable(rightVariable).also { it.freeze() }
+        node.flow = flow.removeSyntheticVariable(leftVariable).removeSyntheticVariable(rightVariable).also { it.freeze() }
     }
 
     override fun enterBinaryOr(binaryLogicExpression: FirBinaryLogicExpression) {
@@ -336,10 +354,16 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
                 flow.addNotApprovedFact(orVariable, UnapprovedFirDataFlowInfo(ConditionRHS(ConditionOperator.Eq, False), variable, info))
             }
         }
-        node.flow = flow.removeVariable(leftVariable).removeVariable(rightVariable).also { it.freeze() }
+        node.flow = flow.removeSyntheticVariable(leftVariable).removeSyntheticVariable(rightVariable).also { it.freeze() }
     }
 
-    private fun approveFact(variable: DataFlowVariable, value: ConditionValue, flow: DataFlowStatementsStorage): Map<DataFlowVariable, FirDataFlowInfo>? =
+    private fun exitBooleanNot(functionCall: FirFunctionCall, node: FunctionCallNode) {
+        val booleanExpressionVariable = getVariable(node.previousNodes.first().fir)
+        val variable = getVariable(functionCall)
+        node.flow = node.flow.copyNotApprovedFacts(booleanExpressionVariable, variable) { it.invert() }.also { it.freeze() }
+    }
+
+    private fun approveFact(variable: DataFlowVariable, value: ConditionValue, flow: Flow): Map<DataFlowVariable, FirDataFlowInfo>? =
         logicSystem.approveFact(Condition(variable, ConditionOperator.Eq, value), flow)
 
     private fun FirBinaryLogicExpression.getVariables(): Pair<DataFlowVariable, DataFlowVariable> =
@@ -347,7 +371,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
     // -------------------------------------------------------------------------------------------------------------------------
 
-    private var CFGNode<*>.flow: DataFlowStatementsStorage
+    private var CFGNode<*>.flow: Flow
         get() = edges.getValue(this)
         set(value) {
             edges[this] = value
@@ -372,7 +396,8 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
             getRealVariable(symbol)
     }
 
-    private fun DataFlowStatementsStorage.removeVariable(variable: DataFlowVariable): DataFlowStatementsStorage {
+    private fun Flow.removeSyntheticVariable(variable: DataFlowVariable): Flow {
+        if (!variable.isSynthetic) return this
         variableStorage.removeVariable(variable)
         return removeVariableFromFlow(variable)
     }

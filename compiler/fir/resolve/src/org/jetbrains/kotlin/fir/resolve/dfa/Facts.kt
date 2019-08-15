@@ -151,8 +151,8 @@ class DataFlowStatementsStorage(
         return approvedFacts[variable]
     }
 
-    fun removeVariable(variable: DataFlowVariable): DataFlowStatementsStorage {
-        if (state == State.Frozen) return copyForBuilding().removeVariable(variable)
+    fun removeVariableFromFlow(variable: DataFlowVariable): DataFlowStatementsStorage {
+        if (state == State.Frozen) return copyForBuilding().removeVariableFromFlow(variable)
         notApprovedFacts.removeAll(variable)
         approvedFacts.remove(variable)
         return this

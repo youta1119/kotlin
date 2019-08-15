@@ -23,3 +23,15 @@ FILE: multipleConditions.kt
         }
 
     }
+    public final fun test_2(x: R|kotlin/Any|): R|kotlin/Unit| {
+        when () {
+            (R|<local>/x| is R|B|) || (R|<local>/x| is R|C|) ->  {
+                R|<local>/x|.R|/A.foo|()
+                R|<local>/x|.<Unresolved name: bar>#()
+                R|<local>/x|.<Unresolved name: baz>#()
+            }
+            else ->  {
+            }
+        }
+
+    }

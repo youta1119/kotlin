@@ -137,18 +137,25 @@ class DataFlowStatementsStorage(
     }
 
     fun copyNotApprovedFacts(from: DataFlowVariable, to: DataFlowVariable): DataFlowStatementsStorage {
-        val flow = if (state == State.Frozen) copyForBuilding() else this
+        if (state == State.Frozen) copyForBuilding().copyNotApprovedFacts(from, to)
         val facts = if (from.isSynthetic) {
-            flow.notApprovedFacts.removeAll(from)
+            notApprovedFacts.removeAll(from)
         } else {
-            flow.notApprovedFacts[from]
+            notApprovedFacts[from]
         }
-        flow.notApprovedFacts.putAll(to, facts)
-        return flow
+        notApprovedFacts.putAll(to, facts)
+        return this
     }
 
     fun approvedFacts(variable: DataFlowVariable): FirDataFlowInfo? {
         return approvedFacts[variable]
+    }
+
+    fun removeVariable(variable: DataFlowVariable): DataFlowStatementsStorage {
+        if (state == State.Frozen) return copyForBuilding().removeVariable(variable)
+        notApprovedFacts.removeAll(variable)
+        approvedFacts.remove(variable)
+        return this
     }
 
     companion object {

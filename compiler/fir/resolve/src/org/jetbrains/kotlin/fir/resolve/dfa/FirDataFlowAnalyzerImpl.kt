@@ -155,7 +155,8 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     }
 
     override fun exitWhenBranchResult(whenBranch: FirWhenBranch) {
-        graphBuilder.exitWhenBranchResult(whenBranch).also(this::passFlow)
+        val node = graphBuilder.exitWhenBranchResult(whenBranch).also { passFlow(it, false) }
+        node.flow = removeVariable(getVariable(whenBranch.condition), node.flow)
     }
 
     override fun exitWhenExpression(whenExpression: FirWhenExpression) {
@@ -315,5 +316,10 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
             getSyntheticVariable(fir)
         else
             getRealVariable(symbol)
+    }
+
+    private fun removeVariable(variable: DataFlowVariable, flow: DataFlowStatementsStorage): DataFlowStatementsStorage {
+        variableStorage.removeVariable(variable)
+        return flow.removeVariable(variable)
     }
 }

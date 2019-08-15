@@ -41,10 +41,6 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
 
     val lastNode: CFGNode<*> get() = lastNodes.top()
 
-    // ----------------------------------- Callbacks -----------------------------------
-
-    open fun passFlow(from: CFGNode<*>, to: CFGNode<*>) {}
-
     // ----------------------------------- Named function -----------------------------------
 
     fun enterNamedFunction(namedFunction: FirNamedFunction): FunctionEnterNode {
@@ -178,7 +174,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
 
     // ----------------------------------- Do while Loop -----------------------------------
 
-    fun enterDoWhileLoop(loop: FirLoop) {
+    fun enterDoWhileLoop(loop: FirLoop): LoopBlockEnterNode {
         addNewSimpleNode(createLoopEnterNode(loop))
         loopExitNodes.push(createLoopExitNode(loop))
         levelCounter++
@@ -188,16 +184,18 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         lastNodes.push(blockEnterNode)
         loopEnterNodes.push(blockEnterNode)
         levelCounter++
+        return blockEnterNode
     }
 
-    fun enterDoWhileLoopCondition(loop: FirLoop) {
+    fun enterDoWhileLoopCondition(loop: FirLoop): Pair<LoopBlockExitNode, LoopConditionEnterNode> {
         levelCounter--
-        addNewSimpleNode(createLoopBlockExitNode(loop))
-        addNewSimpleNode(createLoopConditionEnterNode(loop))
+        val blockExitNode = createLoopBlockExitNode(loop).also { addNewSimpleNode(it) }
+        val conditionEnterNode = createLoopConditionEnterNode(loop).also { addNewSimpleNode(it) }
         levelCounter++
+        return blockExitNode to conditionEnterNode
     }
 
-    fun exitDoWhileLoop(loop: FirLoop) {
+    fun exitDoWhileLoop(loop: FirLoop): LoopExitNode {
         loopEnterNodes.pop()
         levelCounter--
         val conditionExitNode = createLoopConditionExitNode(loop)
@@ -210,6 +208,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         addEdge(conditionExitNode, loopExit)
         lastNodes.push(loopExit)
         levelCounter--
+        return loopExit
     }
 
     // ----------------------------------- Boolean operators -----------------------------------
@@ -372,18 +371,11 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         return oldNode
     }
 
-    private fun addEdge(from: CFGNode<*>, to: CFGNode<*>, shouldPassFlow: Boolean = true, propagateDeadness: Boolean = true) {
+    private fun addEdge(from: CFGNode<*>, to: CFGNode<*>, propagateDeadness: Boolean = true) {
         if (propagateDeadness && from.isDead) {
             to.isDead = true
         }
         from.followingNodes += to
         to.previousNodes += from
-        if (shouldPassFlow) {
-            passFlow(from, to)
-        }
     }
-
-    // -------------------------------------------------------------------------------------------------------------------------
-
-
 }

@@ -10,169 +10,227 @@ import org.jetbrains.kotlin.fir.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
-import org.jetbrains.kotlin.fir.resolve.dfa.cfg.CFGNode
-import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraph
-import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraphBuilder
+import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.types.*
+import org.jetbrains.kotlin.utils.addToStdlib.safeAs
+import javax.xml.crypto.Data
 
 class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataFlowAnalyzer(), BodyResolveComponents by transformer {
-    private val context: ConeTypeContext get() = inferenceComponents.ctx as ConeTypeContext
-    private val factSystem: FactSystem = FactSystem(context)
+    private val context: DataFlowInferenceContext get() = inferenceComponents.ctx as DataFlowInferenceContext
 
     private val graphBuilder = ControlFlowGraphBuilder()
-
+    private val logicSystem = LogicSystem(context)
     private val variableStorage = DataFlowVariableStorage()
-    private val edges = mutableMapOf<CFGNode<*>, Facts>().withDefault { Facts.EMPTY }
-    private val outputEdges = mutableMapOf<CFGNode<*>, Facts>()
-
-    private val conditionVariables: Stack<DataFlowVariable> =
-        stackOf()
+    private val edges = mutableMapOf<CFGNode<*>, DataFlowStatementsStorage>().withDefault { DataFlowStatementsStorage.EMPTY }
 
     override fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
-        return qualifiedAccessExpression.typeRef.coneTypeUnsafe()
-//        val lastNode = graphBuilder.lastNode
-//        val fir = (((qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol) as? FirBasedSymbol<*>)?.fir
-//            ?: return null
-//        val types = factSystem.squashExactTypes(lastNode.facts[fir]).takeIf { it.isNotEmpty() } ?: return null
-//        val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
-//        return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, types)
+        val symbol: FirBasedSymbol<*> = (qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol as? FirBasedSymbol<*> ?: return null
+        val variable = variableStorage[symbol] ?: return null
+        val smartCastType = graphBuilder.lastNode.flow.approvedFacts(variable)?.exactType ?: return null
+        val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
+        return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, smartCastType)
     }
-
-    private operator fun Facts.get(fir: FirElement): Collection<FirDataFlowInfo> =
-        variableStorage[fir]?.let { this[it] } ?: emptyList()
-
-    private operator fun Facts.get(variable: DataFlowVariable): Collection<FirDataFlowInfo> =
-        verifiedInfos.map { it.dataFlowInfo }.filter { it.variable == variable }
 
     // ----------------------------------- Named function -----------------------------------
 
     override fun enterNamedFunction(namedFunction: FirNamedFunction) {
         variableStorage.reset()
-        graphBuilder.enterNamedFunction(namedFunction)
+        graphBuilder.enterNamedFunction(namedFunction).also {
+            it.flow = DataFlowStatementsStorage()
+        }
 
         for (valueParameter in namedFunction.valueParameters) {
-            variableStorage.createNewRealVariable(valueParameter)
+            getRealVariable(valueParameter.symbol)
         }
     }
 
     override fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
-        return graphBuilder.exitNamedFunction(namedFunction)
+        val graph = graphBuilder.exitNamedFunction(namedFunction)
+        return graph
     }
 
     // ----------------------------------- Block -----------------------------------
 
     override fun enterBlock(block: FirBlock) {
-        graphBuilder.enterBlock(block)
+        val node = graphBuilder.enterBlock(block).also { passFlow(it, false) }
+
+        val previousNode = node.usefulPreviousNodes.singleOrNull() as? WhenBranchConditionExitNode
+        if (previousNode != null) {
+            node.flow = logicSystem.approveFact(previousNode.trueCondition, node.flow)
+        }
+        node.flow.freeze()
     }
 
     override fun exitBlock(block: FirBlock) {
-        graphBuilder.exitBlock(block)
+        graphBuilder.exitBlock(block).also(this::passFlow)
     }
 
     // ----------------------------------- Type operator call -----------------------------------
 
     override fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {
-        graphBuilder.exitTypeOperatorCall(typeOperatorCall)
+        val node = graphBuilder.exitTypeOperatorCall(typeOperatorCall).also { passFlow(it, false) }
+
+        try {
+            if (typeOperatorCall.operation == FirOperation.IS) {
+                val symbol: FirCallableSymbol<*> = typeOperatorCall.argument.toResolvedCallableSymbol() as? FirCallableSymbol<*> ?: return
+                val type = typeOperatorCall.conversionTypeRef.coneTypeSafe<ConeKotlinType>() ?: return
+
+                val expressionVariable = getSyntheticVariable(typeOperatorCall)
+                val varVariable = getRealVariable(symbol)
+
+                var flow = node.flow
+                flow = flow.addNotApprovedFact(
+                    expressionVariable,
+                    UnapprovedFirDataFlowInfo(
+                        ConditionRHS(ConditionOperator.Eq, ConditionValue.True), varVariable, FirDataFlowInfo(type, null)
+                    )
+                )
+                flow = flow.addNotApprovedFact(
+                    expressionVariable,
+                    UnapprovedFirDataFlowInfo(
+                        ConditionRHS(ConditionOperator.Eq, ConditionValue.False), varVariable, FirDataFlowInfo(null, type)
+                    )
+                )
+                node.flow = flow
+            }
+
+            if (typeOperatorCall.operation == FirOperation.NOT_IS) {
+                val symbol: FirCallableSymbol<*> = typeOperatorCall.argument.toResolvedCallableSymbol() as? FirCallableSymbol<*> ?: return
+                val type = typeOperatorCall.conversionTypeRef.coneTypeSafe<ConeKotlinType>() ?: return
+
+                val expressionVariable = getSyntheticVariable(typeOperatorCall)
+                val varVariable = getRealVariable(symbol)
+
+                var flow = node.flow
+                flow = flow.addNotApprovedFact(
+                    expressionVariable,
+                    UnapprovedFirDataFlowInfo(
+                        ConditionRHS(ConditionOperator.Eq, ConditionValue.True), varVariable, FirDataFlowInfo(null, type)
+                    )
+                )
+                flow = flow.addNotApprovedFact(
+                    expressionVariable,
+                    UnapprovedFirDataFlowInfo(
+                        ConditionRHS(ConditionOperator.Eq, ConditionValue.False), varVariable, FirDataFlowInfo(type, null)
+                    )
+                )
+                node.flow = flow
+            }
+
+        } finally {
+            node.flow.freeze()
+        }
     }
 
     // ----------------------------------- Jump -----------------------------------
 
     override fun exitJump(jump: FirJump<*>) {
-        graphBuilder.exitJump(jump)
+        graphBuilder.exitJump(jump).also(this::passFlow)
     }
 
     // ----------------------------------- When -----------------------------------
 
     override fun enterWhenExpression(whenExpression: FirWhenExpression) {
-        graphBuilder.enterWhenExpression(whenExpression)
+        graphBuilder.enterWhenExpression(whenExpression).also(this::passFlow)
     }
 
     override fun enterWhenBranchCondition(whenBranch: FirWhenBranch) {
-        graphBuilder.enterWhenBranchCondition(whenBranch)
-        conditionVariables.push(variableStorage.createNewSyntheticVariable(whenBranch.condition))
+        val node = graphBuilder.enterWhenBranchCondition(whenBranch).also { passFlow(it, false) }
+        val previousNode = node.previousNodes.single()
+        if (previousNode is WhenBranchConditionExitNode) {
+            node.flow = logicSystem.approveFact(previousNode.falseCondition, node.flow)
+        }
+        node.flow.freeze()
     }
 
     override fun exitWhenBranchCondition(whenBranch: FirWhenBranch) {
-        val node = graphBuilder.exitWhenBranchCondition(whenBranch)
+        val node = graphBuilder.exitWhenBranchCondition(whenBranch).also(this::passFlow)
 
-        val conditionVariable = conditionVariables.pop()
-        val trueCondition = BooleanCondition(conditionVariable, true)
-        node.condition = trueCondition
+        val conditionVariable = getVariable(whenBranch.condition)
+        node.trueCondition = Condition(conditionVariable, ConditionOperator.Eq, ConditionValue.True)
+        node.falseCondition = Condition(conditionVariable, ConditionOperator.Eq, ConditionValue.False)
     }
 
     override fun exitWhenBranchResult(whenBranch: FirWhenBranch) {
-        graphBuilder.exitWhenBranchResult(whenBranch)
+        graphBuilder.exitWhenBranchResult(whenBranch).also(this::passFlow)
     }
 
     override fun exitWhenExpression(whenExpression: FirWhenExpression) {
-        val whenExitNode = graphBuilder.exitWhenExpression(whenExpression)
-        intersectFactsFromPreviousNodes(whenExitNode)
+        val node = graphBuilder.exitWhenExpression(whenExpression)
+        val flow = logicSystem.or(node.usefulPreviousNodes.map { it.flow })
+        node.flow = flow
     }
 
     // ----------------------------------- While Loop -----------------------------------
 
     override fun enterWhileLoop(loop: FirLoop) {
-        graphBuilder.enterWhileLoop(loop)
+        graphBuilder.enterWhileLoop(loop).also(this::passFlow)
     }
 
     override fun exitWhileLoopCondition(loop: FirLoop) {
-        graphBuilder.exitWhileLoopCondition(loop)
+        graphBuilder.exitWhileLoopCondition(loop).also(this::passFlow)
     }
 
     override fun exitWhileLoop(loop: FirLoop) {
-        graphBuilder.exitWhileLoop(loop)
+        graphBuilder.exitWhileLoop(loop).also(this::passFlow)
     }
 
     // ----------------------------------- Do while Loop -----------------------------------
 
     override fun enterDoWhileLoop(loop: FirLoop) {
-        graphBuilder.enterDoWhileLoop(loop)
+        graphBuilder.enterDoWhileLoop(loop).also(this::passFlow)
     }
 
     override fun enterDoWhileLoopCondition(loop: FirLoop) {
-        graphBuilder.enterDoWhileLoopCondition(loop)
+        val (loopBlockExitNode, loopConditionEnterNode) = graphBuilder.enterDoWhileLoopCondition(loop)
+        passFlow(loopBlockExitNode)
+        passFlow(loopConditionEnterNode)
     }
 
     override fun exitDoWhileLoop(loop: FirLoop) {
-        graphBuilder.exitDoWhileLoop(loop)
+        graphBuilder.exitDoWhileLoop(loop).also(this::passFlow)
     }
 
     // ----------------------------------- Try-catch-finally -----------------------------------
 
     override fun enterTryExpression(tryExpression: FirTryExpression) {
-        graphBuilder.enterTryExpression(tryExpression)
+        graphBuilder.enterTryExpression(tryExpression).also(this::passFlow)
     }
 
     override fun exitTryMainBlock(tryExpression: FirTryExpression) {
-        graphBuilder.exitTryMainBlock(tryExpression)
+        graphBuilder.exitTryMainBlock(tryExpression).also(this::passFlow)
     }
 
     override fun enterCatchClause(catch: FirCatch) {
-        graphBuilder.enterCatchClause(catch)
+        graphBuilder.enterCatchClause(catch).also(this::passFlow)
     }
 
     override fun exitCatchClause(catch: FirCatch) {
-        graphBuilder.exitCatchClause(catch)
+        graphBuilder.exitCatchClause(catch).also(this::passFlow)
     }
 
     override fun enterFinallyBlock(tryExpression: FirTryExpression) {
+        // TODO
         graphBuilder.enterFinallyBlock(tryExpression)
     }
 
     override fun exitFinallyBlock(tryExpression: FirTryExpression) {
+        // TODO
         graphBuilder.exitFinallyBlock(tryExpression)
     }
 
     override fun exitTryExpression(tryExpression: FirTryExpression) {
+        // TODO
         graphBuilder.exitTryExpression(tryExpression)
     }
 
     // ----------------------------------- Resolvable call -----------------------------------
 
     override fun exitQualifiedAccessExpression(qualifiedAccessExpression: FirQualifiedAccessExpression) {
-        graphBuilder.exitQualifiedAccessExpression(qualifiedAccessExpression)
+        graphBuilder.exitQualifiedAccessExpression(qualifiedAccessExpression).also(this::passFlow)
     }
 
     override fun enterFunctionCall(functionCall: FirFunctionCall) {
@@ -180,23 +238,30 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     }
 
     override fun exitFunctionCall(functionCall: FirFunctionCall) {
-        graphBuilder.exitFunctionCall(functionCall)
+        graphBuilder.exitFunctionCall(functionCall).also(this::passFlow)
     }
 
     override fun exitConstExpresion(constExpression: FirConstExpression<*>) {
-        graphBuilder.exitConstExpresion(constExpression)
+        graphBuilder.exitConstExpresion(constExpression).also(this::passFlow)
     }
 
     override fun exitVariableDeclaration(variable: FirVariable<*>) {
-        graphBuilder.exitVariableDeclaration(variable)
+        val node = graphBuilder.exitVariableDeclaration(variable).also { passFlow(it, false) }
+        try {
+            val initializerVariable = variableStorage[variable.initializer ?: return] ?: return
+            val realVariable = getRealVariable(variable.symbol)
+            node.flow = node.flow.copyNotApprovedFacts(initializerVariable, realVariable)
+        } finally {
+            node.flow.freeze()
+        }
     }
 
     override fun exitVariableAssignment(assignment: FirVariableAssignment) {
-        graphBuilder.exitVariableAssignment(assignment)
+        graphBuilder.exitVariableAssignment(assignment).also { passFlow(it) }
     }
 
     override fun exitThrowExceptionNode(throwExpression: FirThrowExpression) {
-        graphBuilder.exitThrowExceptionNode(throwExpression)
+        graphBuilder.exitThrowExceptionNode(throwExpression).also(this::passFlow)
     }
 
     // ----------------------------------- Boolean operators -----------------------------------
@@ -227,18 +292,28 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
     // -------------------------------------------------------------------------------------------------------------------------
 
-    private fun intersectFactsFromPreviousNodes(node: CFGNode<*>) {
-        node.facts = factSystem.foldFacts(node.previousNodes.map { outputEdges[it] ?: it.facts })
-    }
-
-    private var CFGNode<*>.facts: Facts
+    private var CFGNode<*>.flow: DataFlowStatementsStorage
         get() = edges.getValue(this)
         set(value) {
             edges[this] = value
         }
 
-    private val CFGNode<*>.verifiedInfos: Collection<VerifiedInfo>
-        get() = facts.verifiedInfos
+    private fun passFlow(node: CFGNode<*>, shouldFreeze: Boolean = true) {
+        node.flow = logicSystem.or(node.usefulPreviousNodes.map { it.flow }).also {
+            if (shouldFreeze) it.freeze()
+        }
+    }
 
-    private val CFGNode<*>.previousFacts: List<Facts> get() = previousNodes.map { it.facts }
+    private fun getSyntheticVariable(fir: FirElement): DataFlowVariable = variableStorage.getOrCreateNewSyntheticVariable(fir)
+    private fun getRealVariable(symbol: FirBasedSymbol<*>): DataFlowVariable = variableStorage.getOrCreateNewRealVariable(symbol)
+
+    private fun getVariable(fir: FirElement): DataFlowVariable {
+        val symbol = fir.safeAs<FirQualifiedAccessExpression>()
+            ?.calleeReference?.safeAs<FirResolvedCallableReference>()
+            ?.coneSymbol as? FirBasedSymbol<*>
+        return if (symbol == null)
+            getSyntheticVariable(fir)
+        else
+            getRealVariable(symbol)
+    }
 }

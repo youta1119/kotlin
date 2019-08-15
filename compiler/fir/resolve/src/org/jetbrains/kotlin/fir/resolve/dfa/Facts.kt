@@ -5,248 +5,229 @@
 
 package org.jetbrains.kotlin.fir.resolve.dfa
 
-import com.google.common.collect.LinkedHashMultimap
-import com.google.common.collect.Multimap
-import org.jetbrains.kotlin.fir.FirElement
-import org.jetbrains.kotlin.fir.declarations.FirTypedDeclaration
-import org.jetbrains.kotlin.fir.expressions.FirExpression
-import org.jetbrains.kotlin.fir.render
-import org.jetbrains.kotlin.fir.resolve.transformers.resultType
-import org.jetbrains.kotlin.fir.types.*
+import com.google.common.collect.HashMultimap
+import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.fir.types.ConeTypeContext
+import org.jetbrains.kotlin.fir.types.ConeTypeIntersector
+import org.jetbrains.kotlin.fir.types.render
 import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
 import org.jetbrains.kotlin.types.model.TypeSystemCommonSuperTypesContext
-import kotlin.math.min
 
+// TODO: rename
+interface WithLevel {
+    val level: Int
+}
 
-/*
- * isSynthetic = false for variables that represents actual variables in fir
- * isSynthetic = true for complex expressions (like when expression)
- */
-data class DataFlowVariable(
-    val name: String,
-    val type: FirTypeRef,
-    val isSynthetic: Boolean
+enum class ConditionValue(val token: String) {
+    True("true"), False("false");
+
+    override fun toString(): String {
+        return token
+    }
+}
+
+enum class ConditionOperator(val token: String) {
+    Eq("=="), NotEq("!=");
+
+    override fun toString(): String {
+        return token
+    }
+}
+
+data class ConditionRHS(val operator: ConditionOperator, val value: ConditionValue) {
+    override fun toString(): String {
+        return "$operator $value"
+    }
+}
+
+class Condition(val variable: DataFlowVariable, val rhs: ConditionRHS) {
+    val operator: ConditionOperator get() = rhs.operator
+    val value: ConditionValue get() = rhs.value
+
+    constructor(
+        variable: DataFlowVariable,
+        operator: ConditionOperator,
+        value: ConditionValue
+    ) : this(variable, ConditionRHS(operator, value))
+
+    override fun toString(): String {
+        return "$variable $rhs"
+    }
+}
+
+data class UnapprovedFirDataFlowInfo(
+    val condition: ConditionRHS,
+    val variable: DataFlowVariable,
+    val info: FirDataFlowInfo
 ) {
     override fun toString(): String {
-        return "${if (isSynthetic) "synth " else ""}DFVar: $name: ${type.coneTypeUnsafe<ConeKotlinType>()}"
+        return "$condition -> $variable: ${info.exactType?.render()}, ${info.exactNotType?.render()}"
     }
 }
-
-class DataFlowVariableStorage {
-    private val dfi2FirMap: Multimap<DataFlowVariable, FirElement> = LinkedHashMultimap.create()
-    private val fir2DfiMap: MutableMap<FirElement, DataFlowVariable> = mutableMapOf()
-
-    fun createNewRealVariable(fir: FirElement): DataFlowVariable {
-        return DataFlowVariable(fir.render(), fir.type, false).also { storeVariable(it, fir) }
-    }
-
-    fun createNewSyntheticVariable(fir: FirElement): DataFlowVariable {
-        return DataFlowVariable(fir.render(), fir.type, true).also { storeVariable(it, fir) }
-    }
-
-    fun removeVariable(variable: DataFlowVariable) {
-        val firExpressions = dfi2FirMap.removeAll(variable)
-        firExpressions.forEach(fir2DfiMap::remove)
-    }
-
-    private fun storeVariable(variable: DataFlowVariable, fir: FirElement) {
-        dfi2FirMap.put(variable, fir)
-        fir2DfiMap.put(fir, variable)
-    }
-
-    operator fun get(variable: DataFlowVariable): Collection<FirElement> {
-        return dfi2FirMap[variable]
-    }
-
-    operator fun get(firElement: FirElement): DataFlowVariable? {
-        return fir2DfiMap[firElement]
-    }
-
-    fun reset() {
-        dfi2FirMap.clear()
-        fir2DfiMap.clear()
-    }
-}
-
-private val FirElement.type: FirTypeRef
-    get() = when (this) {
-        is FirExpression -> this.resultType
-        is FirTypedDeclaration -> this.returnTypeRef
-        else -> TODO()
-    }
-
-// --------------------------------------------------------------------------------------
-
-sealed class Condition {
-    abstract fun canBeVerifiedBy(other: Condition): Boolean
-    abstract fun canBeRejectedBy(other: Condition): Boolean
-
-    abstract fun negate(): Condition
-}
-
-// variable == value
-data class BooleanCondition(val variable: DataFlowVariable, val value: Boolean) : Condition() {
-    override fun canBeVerifiedBy(other: Condition): Boolean {
-        if (other !is BooleanCondition) return false
-        return this == other
-    }
-
-    override fun canBeRejectedBy(other: Condition): Boolean {
-        if (other !is BooleanCondition) return false
-        return variable == other.variable && value != other.value
-    }
-
-    override fun negate(): Condition {
-        return BooleanCondition(variable, !value)
-    }
-
-    override fun toString(): String {
-        return "$variable == $value"
-    }
-}
-
-// --------------------------------------------------------------------------------------
 
 data class FirDataFlowInfo(
-    val variable: DataFlowVariable,
-    val exactTypes: Set<ConeKotlinType>,
-    val exactNotTypes: Set<ConeKotlinType>
+    val exactType: ConeKotlinType?,
+    val exactNotType: ConeKotlinType?
 )
 
-data class UnverifiedInfo(
-    val condition: Condition,
-    val dataFlowInfo: FirDataFlowInfo
-)
+interface DataFlowInferenceContext : ConeTypeContext, TypeSystemCommonSuperTypesContext {
+    private fun myCommonSuperType(types: List<ConeKotlinType>): ConeKotlinType? {
+        return when (types.size) {
+            0 -> null
+            1 -> types.first()
+            else -> with(NewCommonSuperTypeCalculator) {
+                commonSuperType(types) as ConeKotlinType
+            }
+        }
+    }
 
-data class VerifiedInfo(
-    val dataFlowInfo: FirDataFlowInfo,
-    val level: Int
-)
+    private fun myIntersectTypes(types: List<ConeKotlinType>): ConeKotlinType? {
+        return when (types.size) {
+            0 -> null
+            1 -> types.first()
+            else -> ConeTypeIntersector.intersectTypes(this, types)
+        }
+    }
 
-// --------------------------------------------------------------------------------------
+    fun or(infos: Collection<FirDataFlowInfo>): FirDataFlowInfo {
+        infos.singleOrNull()?.let { return it }
+        val exactType = orTypes(infos.map { it.exactType })
+        val exactNotType = orTypes(infos.map { it.exactNotType })
+        return FirDataFlowInfo(exactType, exactNotType)
+    }
 
-typealias UnverifiedInfos = Collection<UnverifiedInfo>
-typealias VerifiedInfos = Collection<VerifiedInfo>
+    private fun orTypes(types: Collection<ConeKotlinType?>): ConeKotlinType? {
+        if (types.any { it == null }) return null
+        @Suppress("UNCHECKED_CAST")
+        return myCommonSuperType(types as List<ConeKotlinType>)
+    }
 
-class Facts(
-    val unverifiedInfos: UnverifiedInfos,
-    val verifiedInfos: VerifiedInfos
+    fun and(infos: Collection<FirDataFlowInfo>): FirDataFlowInfo {
+        infos.singleOrNull()?.let { return it }
+        val exactType = myIntersectTypes(infos.mapNotNull { it.exactType })
+        val exactNotType = myIntersectTypes(infos.mapNotNull { it.exactNotType })
+        return FirDataFlowInfo(exactType, exactNotType)
+    }
+}
+
+typealias Level = Int
+
+class DataFlowStatementsStorage(
+    val approvedFacts: MutableMap<DataFlowVariable, FirDataFlowInfo> = mutableMapOf(),
+    val notApprovedFacts: HashMultimap<DataFlowVariable, UnapprovedFirDataFlowInfo> = HashMultimap.create(),
+    state: State = State.Building
 ) {
+    var state: State = state
+        private set
+
+    fun freeze() {
+        state = State.Frozen
+    }
+
+    fun addApprovedFact(variable: DataFlowVariable, info: FirDataFlowInfo): DataFlowStatementsStorage {
+        if (state == State.Frozen) return copyForBuilding().addApprovedFact(variable, info)
+        approvedFacts.put(variable, info)
+        return this
+    }
+
+    fun addNotApprovedFact(variable: DataFlowVariable, info: UnapprovedFirDataFlowInfo): DataFlowStatementsStorage {
+        if (state == State.Frozen) return copyForBuilding().addNotApprovedFact(variable, info)
+        notApprovedFacts.put(variable, info)
+        return this
+    }
+
+    fun copyNotApprovedFacts(from: DataFlowVariable, to: DataFlowVariable): DataFlowStatementsStorage {
+        val flow = if (state == State.Frozen) copyForBuilding() else this
+        val facts = if (from.isSynthetic) {
+            flow.notApprovedFacts.removeAll(from)
+        } else {
+            flow.notApprovedFacts[from]
+        }
+        flow.notApprovedFacts.putAll(to, facts)
+        return flow
+    }
+
+    fun approvedFacts(variable: DataFlowVariable): FirDataFlowInfo? {
+        return approvedFacts[variable]
+    }
+
     companion object {
-        val EMPTY = Facts(emptyList(), emptyList())
+        val EMPTY = DataFlowStatementsStorage(mutableMapOf(), HashMultimap.create(), State.Frozen)
     }
 
-    val unverifiedInfoMap: Map<Condition, List<FirDataFlowInfo>>
-        get() = unverifiedInfos.groupByTo(mutableMapOf(), { it.condition }) { it.dataFlowInfo }
+    enum class State {
+        Building, Frozen
+    }
 
-    operator fun plus(info: VerifiedInfo): Facts = Facts(unverifiedInfos, verifiedInfos.toMutableSet().also { it += info })
+    fun copy(): DataFlowStatementsStorage {
+        return when (state) {
+            State.Frozen -> this
+            State.Building -> copyForBuilding()
+        }
+    }
 
-    operator fun plus(info: UnverifiedInfo): Facts = Facts(unverifiedInfos.toMutableSet().also { it += info }, verifiedInfos)
-
-    @JvmName("plusVerifiedInfos")
-    operator fun plus(infos: VerifiedInfos): Facts = Facts(unverifiedInfos, verifiedInfos.toMutableSet().also { it.addAll(infos) })
-
-    @JvmName("plusUnverifiedInfos")
-    operator fun plus(infos: UnverifiedInfos): Facts = Facts(unverifiedInfos.toMutableSet().also { it.addAll(infos) }, verifiedInfos)
+    fun copyForBuilding(): DataFlowStatementsStorage {
+        return DataFlowStatementsStorage(approvedFacts.toMutableMap(), notApprovedFacts.copy(), State.Building)
+    }
 }
 
-class FactSystem(val context: ConeTypeContext) {
-    fun verifyFacts(facts: Facts, conditionToAccept: Condition, level: Int): Facts {
-        val verifiedInfos = facts.verifiedInfos.toMutableSet()
-        val unverifiedInfos = mutableSetOf<UnverifiedInfo>()
-        for (unverifiedInfo in facts.unverifiedInfos) {
-            val (condition, info) = unverifiedInfo
-            when {
-                condition.canBeVerifiedBy(conditionToAccept) -> verifiedInfos += VerifiedInfo(info, level)
-                // TODO: think about it
-                !condition.canBeRejectedBy(conditionToAccept) -> unverifiedInfos += unverifiedInfo
+private fun <K, V> HashMultimap<K, V>.copy(): HashMultimap<K, V> = HashMultimap.create(this)
+
+class LogicSystem(private val context: DataFlowInferenceContext) {
+    private fun <E> List<Set<E>>.intersectSets(): Set<E> = takeIf { isNotEmpty() }?.reduce { x, y -> x.intersect(y) } ?: emptySet()
+
+    fun or(storages: Collection<DataFlowStatementsStorage>): DataFlowStatementsStorage {
+        storages.singleOrNull()?.let {
+            return when (it.state) {
+                DataFlowStatementsStorage.State.Frozen -> it
+                DataFlowStatementsStorage.State.Building -> it.copy()
             }
         }
-        return Facts(unverifiedInfos, verifiedInfos)
-    }
-
-    fun removeStaleFacts(facts: Facts, currentLevel: Int): Facts {
-        val cleanedInfos = facts.verifiedInfos.filter { it.level > currentLevel }
-        if (cleanedInfos.size == facts.verifiedInfos.size) return facts
-        return Facts(facts.unverifiedInfos, cleanedInfos)
-    }
-
-    fun foldFacts(facts: Collection<Facts>): Facts = facts.singleOrNull() ?: facts.reduce { x, y -> x or y}
-
-    infix fun Facts.or(other: Facts): Facts {
-        val unverifiedInfos = this.orForUnverifiedFacts(other)
-        val verifiedInfos = this.orForVerifiedFacts(other)
-        return Facts(unverifiedInfos, verifiedInfos)
-    }
-
-    private fun Facts.orForVerifiedFacts(other: Facts): Collection<VerifiedInfo> {
-        return verifiedInfos.cartesianProduct(other.verifiedInfos)
-            .mapNotNull { (x, y) ->
-                val dfi = x.dataFlowInfo.or(y.dataFlowInfo) ?: return@mapNotNull null
-                VerifiedInfo(dfi, min(x.level, y.level))
-            }
-    }
-
-    private fun Facts.orForUnverifiedFacts(other: Facts): Collection<UnverifiedInfo> {
-        val unverifiedInfoMap = this.unverifiedInfoMap
-        val otherUnverifiedInfoMap = other.unverifiedInfoMap
-        val commonConditions = unverifiedInfoMap.keys.intersect(otherUnverifiedInfoMap.keys)
-        val resultUnverifiedInfos = mutableListOf<UnverifiedInfo>()
-        for (condition in commonConditions) {
-            val myInfos = unverifiedInfoMap[condition]!!
-            val otherInfos = otherUnverifiedInfoMap[condition]!!
-            myInfos.cartesianProduct(otherInfos).asSequence()
-                .mapNotNull { (x, y) -> x.or(y) }
-                .map { UnverifiedInfo(condition, it) }
-                .forEach { resultUnverifiedInfos += it }
+        val approvedFacts = mutableMapOf<DataFlowVariable, FirDataFlowInfo>().apply {
+            storages.map { it.approvedFacts.keys }
+                .intersectSets()
+                .forEach { variable ->
+                    val infos = storages.map { it.approvedFacts[variable]!! }
+                    if (infos.isNotEmpty()) {
+                        this[variable] = context.or(infos)
+                    }
+                }
         }
-        return resultUnverifiedInfos
-    }
 
-    fun squashExactTypes(infos: Collection<FirDataFlowInfo>): Collection<ConeKotlinType> {
-        if (infos.isEmpty()) return emptyList()
-        val variable = infos.first().variable
-        assert(infos.all { it.variable == variable })
-        val exactTypes = infos.flatMap { it.exactTypes }
-        val exactNotTypes = infos.flatMap { it.exactNotTypes }
-        return exactTypes - exactNotTypes
-    }
-
-    infix fun FirDataFlowInfo.or(other: FirDataFlowInfo): FirDataFlowInfo? {
-        if (variable != other.variable) return null
-
-        val exactTypes = intersectTypes(exactTypes.toList(), other.exactTypes.toList())
-        val exactNotTypes = intersectTypes(exactNotTypes.toList(), other.exactNotTypes.toList())
-
-        val clashes = exactTypes.intersect(exactNotTypes)
-        val simplifiedExactTypes = exactTypes - clashes
-        val simplifiedExactNotTypes = exactNotTypes - clashes
-        if (simplifiedExactTypes.isEmpty() && simplifiedExactNotTypes.isEmpty()) return null
-        return FirDataFlowInfo(variable, simplifiedExactTypes, simplifiedExactNotTypes)
-    }
-
-    private fun intersectTypes(aTypes: List<ConeKotlinType>, bTypes: List<ConeKotlinType>): Set<ConeKotlinType> {
-        if (aTypes.isEmpty() || bTypes.isEmpty()) return emptySet()
-        val commonSuperType = with(NewCommonSuperTypeCalculator) {
-            with(context as TypeSystemCommonSuperTypesContext) {
-                commonSuperType(listOf(intersectTypes(aTypes), intersectTypes(bTypes)))
-            }
-        } as ConeKotlinType
-
-        return if (commonSuperType is ConeIntersectionType)
-            commonSuperType.intersectedTypes.toSet()
-        else
-            setOf(commonSuperType)
-    }
-
-}
-
-infix fun <T, V> Collection<T>.cartesianProduct(other: Collection<V>): List<Pair<T, V>> {
-    val result = ArrayList<Pair<T, V>>(this.size * other.size)
-    for (x in this) {
-        for (y in other) {
-            result += x to y
+        val notApprovedFacts = HashMultimap.create<DataFlowVariable, UnapprovedFirDataFlowInfo>().apply {
+            storages.map { it.notApprovedFacts.keySet() }
+                .intersectSets()
+                .forEach { variable ->
+                    val infos = storages.map { it.notApprovedFacts[variable] }.intersectSets()
+                    if (infos.isNotEmpty()) {
+                        this.putAll(variable, infos)
+                    }
+                }
         }
+        return DataFlowStatementsStorage(approvedFacts, notApprovedFacts)
     }
-    return result
+
+    fun approveFact(proof: Condition, flow: DataFlowStatementsStorage): DataFlowStatementsStorage {
+        val notApprovedFacts: Set<UnapprovedFirDataFlowInfo> = flow.notApprovedFacts[proof.variable]
+        if (notApprovedFacts.isEmpty()) {
+            return flow
+        }
+        @Suppress("NAME_SHADOWING")
+        val flow = flow.copyForBuilding()
+        val newFacts = HashMultimap.create<DataFlowVariable, FirDataFlowInfo>()
+        notApprovedFacts.forEach {
+            if (it.condition == proof.rhs) {
+                newFacts.put(it.variable, it.info)
+            }
+        }
+        newFacts.asMap().forEach { (variable, infos) ->
+            @Suppress("NAME_SHADOWING")
+            val infos = ArrayList(infos)
+            flow.approvedFacts[variable]?.let {
+                infos.add(it)
+            }
+            flow.approvedFacts[variable] = context.and(infos)
+        }
+        return flow
+    }
 }

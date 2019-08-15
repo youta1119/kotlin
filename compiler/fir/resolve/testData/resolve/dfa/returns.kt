@@ -1,11 +1,11 @@
-//fun test_0(x: Any) {
-//    if (x is String) {
-//        x.length
-//    } else {
-//
-//    }
-//    x.length
-//}
+fun test_0(x: Any) {
+    if (x is String) {
+        x.length
+    } else {
+
+    }
+    x.length
+}
 
 fun test_1(x: Any) {
     if (x is String) {

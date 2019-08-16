@@ -117,7 +117,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
                 }
 
                 FirOperation.SAFE_AS -> {
-
+                    // TODO
                 }
 
                 else -> throw IllegalStateException()
@@ -293,6 +293,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         val node = graphBuilder.exitBinaryAnd(binaryLogicExpression).also { passFlow(it, false) }
         val (leftVariable, rightVariable) = binaryLogicExpression.getVariables()
 
+        val flowFromLeft = node.leftOperandNode.flow
         val flowFromRight = node.rightOperandNode.flow
         val flow = node.flow
 
@@ -300,8 +301,13 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
         val leftIsTrue = approveFact(leftVariable, True, flowFromRight)
         val leftIsFalse = approveFact(leftVariable, False, flowFromRight)
-        val rightIsTrue = approveFact(rightVariable, True, flowFromRight)
+        val rightIsTrue = approveFact(rightVariable, True, flowFromRight) ?: mutableMapOf()
         val rightIsFalse = approveFact(rightVariable, False, flowFromRight)
+
+        flowFromRight.approvedFacts.forEach { (variable, info) ->
+            val actualInfo = flowFromLeft.approvedFacts[variable]?.let { info - it } ?: info
+            if (actualInfo.isNotEmpty) rightIsTrue.compute(variable) { _, existingInfo -> info + existingInfo}
+        }
 
         logicSystem.andForVerifiedFacts(leftIsTrue, rightIsTrue)?.let {
             for ((variable, info) in it) {
@@ -358,7 +364,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         node.flow = node.flow.copyNotApprovedFacts(booleanExpressionVariable, variable) { it.invert() }.also { it.freeze() }
     }
 
-    private fun approveFact(variable: DataFlowVariable, value: ConditionValue, flow: Flow): Map<DataFlowVariable, FirDataFlowInfo>? =
+    private fun approveFact(variable: DataFlowVariable, value: ConditionValue, flow: Flow): MutableMap<DataFlowVariable, FirDataFlowInfo>? =
         logicSystem.approveFact(Condition(variable, ConditionOperator.Eq, value), flow)
 
     private fun FirBinaryLogicExpression.getVariables(): Pair<DataFlowVariable, DataFlowVariable> =

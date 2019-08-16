@@ -101,6 +101,8 @@ data class FirDataFlowInfo(
     )
 
     val isNotEmpty: Boolean get() = exactType.isNotEmpty() || exactNotType.isNotEmpty()
+
+    fun invert(): FirDataFlowInfo = FirDataFlowInfo(exactNotType, exactType)
 }
 
 operator fun FirDataFlowInfo.plus(other: FirDataFlowInfo?): FirDataFlowInfo = other?.let { this + other } ?: this

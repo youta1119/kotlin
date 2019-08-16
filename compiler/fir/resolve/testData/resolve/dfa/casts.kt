@@ -26,3 +26,19 @@ fun test_3(b: Boolean, x: Any?) {
     }
     x.not()
 }
+
+fun test_4(b: Any) {
+    if (b as? Boolean != null) {
+        b.not()
+    } else {
+        b.not()
+    }
+    b.not()
+
+    if (b as? Boolean == null) {
+        b.not()
+    } else {
+        b.not()
+    }
+    b.not()
+}

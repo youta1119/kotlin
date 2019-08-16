@@ -117,7 +117,18 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
                 }
 
                 FirOperation.SAFE_AS -> {
-                    // TODO
+                    val expressionVariable = getSyntheticVariable(typeOperatorCall)
+                    flow = flow.addNotApprovedFact(
+                        expressionVariable,
+                        UnapprovedFirDataFlowInfo(
+                            ConditionRHS(ConditionOperator.NotEq, Null), varVariable, FirDataFlowInfo(setOf(type), emptySet())
+                        )
+                    ).addNotApprovedFact(
+                        expressionVariable,
+                        UnapprovedFirDataFlowInfo(
+                            ConditionRHS(ConditionOperator.Eq, Null), varVariable, FirDataFlowInfo(emptySet(), setOf(type))
+                        )
+                    )
                 }
 
                 else -> throw IllegalStateException()
@@ -159,15 +170,41 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     }
 
     private fun processEqNull(node: OperatorCallNode, operand: FirExpression, operation: FirOperation) {
-        val operandVariables = getRealVariablesForSafeCallChain(operand).takeIf { it.isNotEmpty() } ?: return
+        var flow = node.flow
         val expressionVariable = getVariable(node.fir)
+
+        variableStorage[operand]?.let { operandVariable ->
+            val operator = when (operation) {
+                FirOperation.EQ, FirOperation.IDENTITY -> ConditionOperator.Eq
+                FirOperation.NOT_EQ, FirOperation.NOT_IDENTITY -> ConditionOperator.NotEq
+                else -> throw IllegalArgumentException()
+            }
+            val facts = logicSystem.approveFact(Condition(operandVariable, operator, Null), flow)
+            facts?.forEach { (variable, info) ->
+                flow = flow.addNotApprovedFact(
+                    expressionVariable,
+                    UnapprovedFirDataFlowInfo(
+                        ConditionRHS(ConditionOperator.Eq, True), variable, info
+                    )
+                ).addNotApprovedFact(
+                    expressionVariable,
+                    UnapprovedFirDataFlowInfo(
+                        ConditionRHS(ConditionOperator.Eq, False), variable, info.invert()
+                    )
+                )
+            }
+            node.flow = flow
+            return
+        }
+
+        val operandVariables = getRealVariablesForSafeCallChain(operand).takeIf { it.isNotEmpty() } ?: return
 
         val conditionValue = when (operation) {
             FirOperation.EQ, FirOperation.IDENTITY -> False
             FirOperation.NOT_EQ, FirOperation.NOT_IDENTITY -> True
             else -> throw IllegalArgumentException()
         }
-        var flow = node.flow
+
         operandVariables.forEach { operandVariable ->
             flow = flow.addNotApprovedFact(
                 expressionVariable, UnapprovedFirDataFlowInfo(

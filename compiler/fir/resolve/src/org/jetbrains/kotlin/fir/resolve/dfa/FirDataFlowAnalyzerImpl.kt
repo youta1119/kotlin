@@ -18,6 +18,7 @@ import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
 import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
 import org.jetbrains.kotlin.fir.types.*
+import org.jetbrains.kotlin.ir.expressions.IrConstKind
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
@@ -37,7 +38,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     override fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
         val symbol: FirBasedSymbol<*> = (qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol as? FirBasedSymbol<*> ?: return null
         val variable = variableStorage[symbol] ?: return null
-        val smartCastTypes  = graphBuilder.lastNode.flow.approvedFacts(variable)?.exactType ?: return null
+        val smartCastTypes = graphBuilder.lastNode.flow.approvedFacts(variable)?.exactType ?: return null
         val smartCastType = context.myIntersectTypes(smartCastTypes.toList()) ?: return null
         val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
         return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, smartCastType)
@@ -134,13 +135,46 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         try {
             when (operatorCall.operation) {
                 FirOperation.EQ, FirOperation.NOT_EQ -> {
+                    val leftOperand = operatorCall.arguments[0]
+                    val rightOperand = operatorCall.arguments[1]
 
+                    when {
+                        leftOperand.safeAs<FirConstExpression<*>>()?.kind == IrConstKind.Null -> processEqNull(node, rightOperand, operatorCall.operation)
+                        rightOperand.safeAs<FirConstExpression<*>>()?.kind == IrConstKind.Null -> processEqNull(node, leftOperand, operatorCall.operation)
+                    }
                 }
-                else -> {}
+                else -> {
+                }
             }
         } finally {
             node.flow.freeze()
         }
+    }
+
+    private fun processEqNull(node: OperatorCallNode, operand: FirExpression, operation: FirOperation) {
+        if (operand !is FirQualifiedAccessExpression) return
+        val operandVariable = getVariable(operand)
+        val expressionVariable = getVariable(node.fir)
+
+        val conditionValue = when (operation) {
+            FirOperation.EQ -> False
+            FirOperation.NOT_EQ -> True
+            else -> throw IllegalArgumentException()
+        }
+
+        node.flow = node.flow.addNotApprovedFact(
+            expressionVariable, UnapprovedFirDataFlowInfo(
+                ConditionRHS(ConditionOperator.Eq, conditionValue),
+                operandVariable,
+                FirDataFlowInfo(setOf(session.builtinTypes.anyType.coneTypeUnsafe()), emptySet())
+            )
+        ).addNotApprovedFact(
+            expressionVariable, UnapprovedFirDataFlowInfo(
+                ConditionRHS(ConditionOperator.Eq, conditionValue.invert()!!),
+                operandVariable,
+                FirDataFlowInfo(setOf(session.builtinTypes.nullableNothingType.coneTypeUnsafe()), emptySet())
+            )
+        )
     }
 
     // ----------------------------------- Jump -----------------------------------
@@ -320,7 +354,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
         flowFromRight.approvedFacts.forEach { (variable, info) ->
             val actualInfo = flowFromLeft.approvedFacts[variable]?.let { info - it } ?: info
-            if (actualInfo.isNotEmpty) rightIsTrue.compute(variable) { _, existingInfo -> info + existingInfo}
+            if (actualInfo.isNotEmpty) rightIsTrue.compute(variable) { _, existingInfo -> info + existingInfo }
         }
 
         logicSystem.andForVerifiedFacts(leftIsTrue, rightIsTrue)?.let {

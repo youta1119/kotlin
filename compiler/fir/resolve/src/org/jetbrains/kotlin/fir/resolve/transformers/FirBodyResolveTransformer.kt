@@ -16,6 +16,7 @@ import org.jetbrains.kotlin.fir.references.FirSimpleNamedReference
 import org.jetbrains.kotlin.fir.resolve.*
 import org.jetbrains.kotlin.fir.resolve.calls.*
 import org.jetbrains.kotlin.fir.resolve.dfa.DataFlowInferenceContext
+import org.jetbrains.kotlin.fir.resolve.dfa.DummyFirDataFlowAnalyzer
 import org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer
 import org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzerImpl
 import org.jetbrains.kotlin.fir.resolve.inference.FirCallCompleter
@@ -49,7 +50,6 @@ open class FirBodyResolveTransformer(
     final override val returnTypeCalculator: ReturnTypeCalculator = ReturnTypeCalculatorWithJump(session, scopeSession)
     final override val labels: SetMultimap<Name, ConeKotlinType> = LinkedHashMultimap.create()
     final override val noExpectedType = FirImplicitTypeRefImpl(null)
-    private val booleanType = FirImplicitBooleanTypeRef(null)
 
     final override val symbolProvider = session.service<FirSymbolProvider>()
     val scopes = mutableListOf<FirScope>()
@@ -83,6 +83,7 @@ open class FirBodyResolveTransformer(
     )
 
     private val syntheticCallGenerator: FirSyntheticCallGenerator = FirSyntheticCallGenerator(this)
+//    private val dataFlowAnalyzer: FirDataFlowAnalyzer = DummyFirDataFlowAnalyzer()
     private val dataFlowAnalyzer: FirDataFlowAnalyzer = FirDataFlowAnalyzerImpl(this)
     private val controlFlowGraphReferenceTransformer = ControlFlowGraphReferenceTransformer()
 
@@ -794,6 +795,7 @@ open class FirBodyResolveTransformer(
         binaryLogicExpression: FirBinaryLogicExpression,
         data: Any?
     ): CompositeTransformResult<FirStatement> {
+        val booleanType = session.builtinTypes.booleanType
         return when (binaryLogicExpression.kind) {
             FirBinaryLogicExpression.OperationKind.AND ->
                 binaryLogicExpression.also(dataFlowAnalyzer::enterBinaryAnd)
@@ -813,7 +815,7 @@ open class FirBodyResolveTransformer(
     override fun transformOperatorCall(operatorCall: FirOperatorCall, data: Any?): CompositeTransformResult<FirStatement> {
         val result = if (operatorCall.operation in FirOperation.BOOLEANS) {
             (operatorCall.transformChildren(this, noExpectedType) as FirOperatorCall).also {
-                it.resultType = booleanType
+                it.resultType = session.builtinTypes.booleanType
             }
         } else {
             super.transformOperatorCall(operatorCall, data).single

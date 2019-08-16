@@ -56,6 +56,10 @@ class FirImplicitNothingTypeRef(
     psi: PsiElement?
 ) : FirImplicitBuiltinTypeRef(psi, StandardClassIds.Nothing)
 
+class FirImplicitNullableNothingTypeRef(
+    psi: PsiElement?
+) : FirImplicitBuiltinTypeRef(psi, StandardClassIds.Nothing, isNullable = true)
+
 class FirImplicitStringTypeRef(
     psi: PsiElement?
 ) : FirImplicitBuiltinTypeRef(psi, StandardClassIds.String)

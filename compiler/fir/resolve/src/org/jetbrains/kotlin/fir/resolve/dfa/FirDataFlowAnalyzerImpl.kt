@@ -159,7 +159,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     }
 
     private fun processEqNull(node: OperatorCallNode, operand: FirExpression, operation: FirOperation) {
-        val operandVariables = getRealVariablesForSafeCallChain(operand)?.takeIf { it.isNotEmpty() } ?: return
+        val operandVariables = getRealVariablesForSafeCallChain(operand).takeIf { it.isNotEmpty() } ?: return
         val expressionVariable = getVariable(node.fir)
 
         val conditionValue = when (operation) {
@@ -224,7 +224,11 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
     override fun exitWhenExpression(whenExpression: FirWhenExpression) {
         val node = graphBuilder.exitWhenExpression(whenExpression)
-        val flow = logicSystem.or(node.usefulPreviousNodes.map { it.flow })
+        var flow = logicSystem.or(node.usefulPreviousNodes.map { it.flow })
+        val subjectSymbol = whenExpression.subjectVariable?.symbol
+        if (subjectSymbol != null) {
+            variableStorage[subjectSymbol]?.let { flow = flow.removeVariable(it) }
+        }
         node.flow = flow
     }
 
@@ -461,15 +465,22 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         val result = mutableListOf<DataFlowVariable>()
 
         fun collect(call: FirExpression) {
-            if (call !is FirQualifiedAccess) return
-            if (call.safe) {
-                val explicitReceiver = call.explicitReceiver
-                require(explicitReceiver != null)
-                collect(explicitReceiver)
-            }
-            ((call.calleeReference as? FirResolvedCallableReference)?.coneSymbol)?.let { symbol ->
-                if (symbol is FirVariableSymbol<*> || symbol is FirPropertySymbol) {
-                    result += getRealVariable(symbol as FirBasedSymbol<*>)
+            when (call) {
+                is FirQualifiedAccess -> {
+                    if (call.safe) {
+                        val explicitReceiver = call.explicitReceiver
+                        require(explicitReceiver != null)
+                        collect(explicitReceiver)
+                    }
+                    ((call.calleeReference as? FirResolvedCallableReference)?.coneSymbol)?.let { symbol ->
+                        if (symbol is FirVariableSymbol<*> || symbol is FirPropertySymbol) {
+                            result += getRealVariable(symbol as FirBasedSymbol<*>)
+                        }
+                    }
+                }
+                is FirWhenSubjectExpression -> {
+                    call.whenSubject.whenExpression.subjectVariable?.let { result += getRealVariable(it.symbol) }
+                    call.whenSubject.whenExpression.subject?.let { collect(it) }
                 }
             }
         }
@@ -478,9 +489,13 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         return result
     }
 
-    private fun Flow.removeSyntheticVariable(variable: DataFlowVariable): Flow {
-        if (!variable.isSynthetic) return this
+    private fun Flow.removeVariable(variable: DataFlowVariable): Flow {
         variableStorage.removeVariable(variable)
         return removeVariableFromFlow(variable)
+    }
+
+    private fun Flow.removeSyntheticVariable(variable: DataFlowVariable): Flow {
+        if (!variable.isSynthetic) return this
+        return removeVariable(variable)
     }
 }

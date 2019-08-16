@@ -5,6 +5,20 @@ FILE: nullability.kt
         public abstract fun getA(): R|A|
 
     }
+    public abstract interface MyData : R|kotlin/Any| {
+        public abstract val s: R|kotlin/String|
+            public get(): R|kotlin/String|
+
+        public abstract fun fs(): R|kotlin/String|
+
+    }
+    public abstract interface Q : R|kotlin/Any| {
+        public abstract val data: R|MyData?|
+            public get(): R|MyData?|
+
+        public abstract fun fdata(): R|MyData?|
+
+    }
     public final fun test_1(x: R|A?|): R|kotlin/Unit| {
         when () {
             !=(R|<local>/x|, Null(null)) ->  {
@@ -30,9 +44,21 @@ FILE: nullability.kt
         R|<local>/x|.<Inapplicable(WRONG_RECEIVER): [/A.foo]>#()
     }
     public final fun test_3(x: R|A?|): R|kotlin/Unit| {
+        when (lval <elvis>: R|A?| = R|<local>/x|) {
+            ==($subj$, Null(null)) ->  {
+                ^test_3 Unit
+            }
+            else ->  {
+                R|<local>/<elvis>|!
+            }
+        }
+
+        R|<local>/x|.R|/A.foo|()
+    }
+    public final fun test_4(x: R|A?|): R|kotlin/Unit| {
         when () {
             ==(R|<local>/x|?.R|/A.getA|(), Null(null)) ->  {
-                ^test_3 Unit
+                ^test_4 Unit
             }
             else ->  {
             }
@@ -40,26 +66,38 @@ FILE: nullability.kt
 
         R|<local>/x|.R|/A.foo|()
     }
-    public abstract interface MyData : R|kotlin/Any| {
-        public abstract val s: R|kotlin/String|
-            public get(): R|kotlin/String|
-
-        public abstract fun fs(): R|kotlin/String|
-
-    }
-    public abstract interface Q : R|kotlin/Any| {
-        public abstract val data: R|MyData?|
-            public get(): R|MyData?|
-
-        public abstract fun fdata(): R|MyData?|
-
-    }
-    public final fun test_4(q: R|Q?|): R|kotlin/Unit| {
+    public final fun test_5(q: R|Q?|): R|kotlin/Unit| {
         when () {
             !=(R|<local>/q|?.R|/Q.data|?.R|/MyData.s|?.R|kotlin/String.length|, Null(null)) ->  {
                 R|<local>/q|.R|/Q.data|
                 R|<local>/q|.R|/Q.data|.R|/MyData.s|
                 R|<local>/q|.R|/Q.data|.R|/MyData.s|.R|kotlin/String.length|
+            }
+            else ->  {
+            }
+        }
+
+    }
+    public final fun test_6(q: R|Q?|): R|kotlin/Unit| {
+        when (lval <elvis>: R|kotlin/Int?| = R|<local>/q|?.R|/Q.data|?.R|/MyData.s|?.R|kotlin/String.length|) {
+            ==($subj$, Null(null)) ->  {
+                ^test_6 Unit
+            }
+            else ->  {
+                R|<local>/<elvis>|!
+            }
+        }
+
+        R|<local>/q|.R|/Q.data|
+        R|<local>/q|.R|/Q.data|.R|/MyData.s|
+        R|<local>/q|.R|/Q.data|.R|/MyData.s|.R|kotlin/String.length|
+    }
+    public final fun test_7(q: R|Q?|): R|kotlin/Unit| {
+        when () {
+            !=(R|<local>/q|?.R|/Q.fdata|()?.R|/MyData.fs|()?.R|kotlin/String.length|, Null(null)) ->  {
+                R|<local>/q|.R|/Q.fdata|()
+                R|<local>/q|.R|/Q.fdata|().<Inapplicable(WRONG_RECEIVER): [/MyData.fs]>#()
+                R|<local>/q|.R|/Q.fdata|().<Inapplicable(WRONG_RECEIVER): [/MyData.fs]>#().<Unresolved name: length>#
             }
             else ->  {
             }

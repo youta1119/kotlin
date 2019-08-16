@@ -15,8 +15,7 @@ import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
 import org.jetbrains.kotlin.fir.symbols.CallableId
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirCallableSymbol
-import org.jetbrains.kotlin.fir.symbols.impl.FirNamedFunctionSymbol
+import org.jetbrains.kotlin.fir.symbols.impl.*
 import org.jetbrains.kotlin.fir.types.*
 import org.jetbrains.kotlin.ir.expressions.IrConstKind
 import org.jetbrains.kotlin.name.FqName
@@ -133,14 +132,18 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     override fun exitOperatorCall(operatorCall: FirOperatorCall) {
         val node = graphBuilder.exitOperatorCall(operatorCall).also { passFlow(it, false) }
         try {
-            when (operatorCall.operation) {
-                FirOperation.EQ, FirOperation.NOT_EQ -> {
+            when (val operation = operatorCall.operation) {
+                FirOperation.EQ, FirOperation.NOT_EQ, FirOperation.IDENTITY, FirOperation.NOT_IDENTITY -> {
                     val leftOperand = operatorCall.arguments[0]
                     val rightOperand = operatorCall.arguments[1]
 
+                    val leftConst = leftOperand as? FirConstExpression<*>
+                    val rightConst = rightOperand as? FirConstExpression<*>
+
                     when {
-                        leftOperand.safeAs<FirConstExpression<*>>()?.kind == IrConstKind.Null -> processEqNull(node, rightOperand, operatorCall.operation)
-                        rightOperand.safeAs<FirConstExpression<*>>()?.kind == IrConstKind.Null -> processEqNull(node, leftOperand, operatorCall.operation)
+                        leftConst?.kind == IrConstKind.Null -> processEqNull(node, rightOperand, operation)
+                        rightConst?.kind == IrConstKind.Null -> processEqNull(node, leftOperand, operation)
+                        else -> processEq(node, leftOperand, rightOperand, operation)
                     }
                 }
                 else -> {
@@ -151,30 +154,37 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         }
     }
 
+    private fun processEq(node: OperatorCallNode, leftOperand: FirExpression, rightOperand: FirExpression, operation: FirOperation) {
+
+    }
+
     private fun processEqNull(node: OperatorCallNode, operand: FirExpression, operation: FirOperation) {
-        if (operand !is FirQualifiedAccessExpression) return
-        val operandVariable = getVariable(operand)
+        val operandVariables = getRealVariablesForSafeCallChain(operand)?.takeIf { it.isNotEmpty() } ?: return
         val expressionVariable = getVariable(node.fir)
 
         val conditionValue = when (operation) {
-            FirOperation.EQ -> False
-            FirOperation.NOT_EQ -> True
+            FirOperation.EQ, FirOperation.IDENTITY -> False
+            FirOperation.NOT_EQ, FirOperation.NOT_IDENTITY -> True
             else -> throw IllegalArgumentException()
         }
+        var flow = node.flow
+        operandVariables.forEach { operandVariable ->
+            flow = flow.addNotApprovedFact(
+                expressionVariable, UnapprovedFirDataFlowInfo(
+                    ConditionRHS(ConditionOperator.Eq, conditionValue),
+                    operandVariable,
+                    FirDataFlowInfo(setOf(session.builtinTypes.anyType.coneTypeUnsafe()), emptySet())
+                )
+            ).addNotApprovedFact(
+                expressionVariable, UnapprovedFirDataFlowInfo(
+                    ConditionRHS(ConditionOperator.Eq, conditionValue.invert()!!),
+                    operandVariable,
+                    FirDataFlowInfo(setOf(session.builtinTypes.nullableNothingType.coneTypeUnsafe()), emptySet())
+                )
+            )
 
-        node.flow = node.flow.addNotApprovedFact(
-            expressionVariable, UnapprovedFirDataFlowInfo(
-                ConditionRHS(ConditionOperator.Eq, conditionValue),
-                operandVariable,
-                FirDataFlowInfo(setOf(session.builtinTypes.anyType.coneTypeUnsafe()), emptySet())
-            )
-        ).addNotApprovedFact(
-            expressionVariable, UnapprovedFirDataFlowInfo(
-                ConditionRHS(ConditionOperator.Eq, conditionValue.invert()!!),
-                operandVariable,
-                FirDataFlowInfo(setOf(session.builtinTypes.nullableNothingType.coneTypeUnsafe()), emptySet())
-            )
-        )
+        }
+        node.flow = flow
     }
 
     // ----------------------------------- Jump -----------------------------------
@@ -445,6 +455,27 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
             getSyntheticVariable(fir)
         else
             getRealVariable(symbol)
+    }
+
+    private fun getRealVariablesForSafeCallChain(call: FirExpression): Collection<DataFlowVariable> {
+        val result = mutableListOf<DataFlowVariable>()
+
+        fun collect(call: FirExpression) {
+            if (call !is FirQualifiedAccess) return
+            if (call.safe) {
+                val explicitReceiver = call.explicitReceiver
+                require(explicitReceiver != null)
+                collect(explicitReceiver)
+            }
+            ((call.calleeReference as? FirResolvedCallableReference)?.coneSymbol)?.let { symbol ->
+                if (symbol is FirVariableSymbol<*> || symbol is FirPropertySymbol) {
+                    result += getRealVariable(symbol as FirBasedSymbol<*>)
+                }
+            }
+        }
+
+        collect(call)
+        return result
     }
 
     private fun Flow.removeSyntheticVariable(variable: DataFlowVariable): Flow {

@@ -2,6 +2,8 @@ FILE: nullability.kt
     public abstract interface A : R|kotlin/Any| {
         public abstract fun foo(): R|kotlin/Unit|
 
+        public abstract fun getA(): R|A|
+
     }
     public final fun test_1(x: R|A?|): R|kotlin/Unit| {
         when () {
@@ -26,4 +28,41 @@ FILE: nullability.kt
         }
 
         R|<local>/x|.<Inapplicable(WRONG_RECEIVER): [/A.foo]>#()
+    }
+    public final fun test_3(x: R|A?|): R|kotlin/Unit| {
+        when () {
+            ==(R|<local>/x|?.R|/A.getA|(), Null(null)) ->  {
+                ^test_3 Unit
+            }
+            else ->  {
+            }
+        }
+
+        R|<local>/x|.R|/A.foo|()
+    }
+    public abstract interface MyData : R|kotlin/Any| {
+        public abstract val s: R|kotlin/String|
+            public get(): R|kotlin/String|
+
+        public abstract fun fs(): R|kotlin/String|
+
+    }
+    public abstract interface Q : R|kotlin/Any| {
+        public abstract val data: R|MyData?|
+            public get(): R|MyData?|
+
+        public abstract fun fdata(): R|MyData?|
+
+    }
+    public final fun test_4(q: R|Q?|): R|kotlin/Unit| {
+        when () {
+            !=(R|<local>/q|?.R|/Q.data|?.R|/MyData.s|?.R|kotlin/String.length|, Null(null)) ->  {
+                R|<local>/q|.R|/Q.data|
+                R|<local>/q|.R|/Q.data|.R|/MyData.s|
+                R|<local>/q|.R|/Q.data|.R|/MyData.s|.R|kotlin/String.length|
+            }
+            else ->  {
+            }
+        }
+
     }

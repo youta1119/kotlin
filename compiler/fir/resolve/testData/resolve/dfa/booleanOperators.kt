@@ -31,3 +31,10 @@ fun test_3(x: Any) {
         x.foo()
     }
 }
+
+fun test_4(x: Any) {
+    if (x !is String || x.length == 0) {
+        x.length
+    }
+    x.length
+}

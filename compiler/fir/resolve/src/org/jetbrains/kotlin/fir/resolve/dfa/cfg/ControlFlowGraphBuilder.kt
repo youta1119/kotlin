@@ -71,10 +71,14 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         return createBlockExitNode(block).also { addNewSimpleNode(it) }
     }
 
-    // ----------------------------------- Type operator call -----------------------------------
+    // ----------------------------------- Operator call -----------------------------------
 
     fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall): TypeOperatorCallNode {
         return createTypeOperatorCallNode(typeOperatorCall).also { addNewSimpleNode(it) }
+    }
+
+    fun exitOperatorCall(operatorCall: FirOperatorCall): OperatorCallNode {
+        return createOperatorCallNode(operatorCall).also { addNewSimpleNode(it) }
     }
 
     // ----------------------------------- Jump -----------------------------------
@@ -240,10 +244,15 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         }.also { levelCounter++ }
     }
 
-    fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression) {
+    fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression): BinaryOrExitLeftOperandNode {
         levelCounter--
         assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.OR)
-        addEdge(lastNodes.pop(), binaryOrExitNodes.top())
+        val previousNode = lastNodes.pop()
+        addEdge(previousNode, binaryOrExitNodes.top())
+        return createBinaryOrExitLeftOperandNode(binaryLogicExpression).also {
+            addEdge(previousNode, it)
+            lastNodes.push(it)
+        }
     }
 
     fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression): BinaryOrExitNode {

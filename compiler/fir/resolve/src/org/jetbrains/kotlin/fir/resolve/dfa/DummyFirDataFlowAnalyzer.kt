@@ -28,6 +28,8 @@ class DummyFirDataFlowAnalyzer : FirDataFlowAnalyzer() {
 
     override fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {}
 
+    override fun exitOperatorCall(operatorCall: FirOperatorCall) {}
+
     override fun exitJump(jump: FirJump<*>) {}
 
     override fun enterWhenExpression(whenExpression: FirWhenExpression) {}

@@ -24,6 +24,9 @@ abstract class ControlFlowGraphNodeBuilder {
     protected fun createTypeOperatorCallNode(fir: FirTypeOperatorCall): TypeOperatorCallNode =
         TypeOperatorCallNode(graph, fir, levelCounter).also { graph.init(it) }
 
+    protected fun createOperatorCallNode(fir: FirOperatorCall): OperatorCallNode =
+        OperatorCallNode(graph, fir, levelCounter).also { graph.init(it) }
+
     protected fun createWhenBranchConditionExitNode(fir: FirWhenBranch): WhenBranchConditionExitNode =
         WhenBranchConditionExitNode(graph, fir, levelCounter).also { graph.init(it) }
 
@@ -52,6 +55,9 @@ abstract class ControlFlowGraphNodeBuilder {
 
     protected fun createBinaryOrEnterNode(fir: FirBinaryLogicExpression): BinaryOrEnterNode =
         BinaryOrEnterNode(graph, fir, levelCounter).also { graph.init(it) }
+
+    protected fun createBinaryOrExitLeftOperandNode(fir: FirBinaryLogicExpression): BinaryOrExitLeftOperandNode =
+        BinaryOrExitLeftOperandNode(graph, fir, levelCounter).also { graph.init(it) }
 
     protected fun createBinaryOrExitNode(fir: FirBinaryLogicExpression): BinaryOrExitNode =
         BinaryOrExitNode(graph, fir, levelCounter).also { graph.init(it) }

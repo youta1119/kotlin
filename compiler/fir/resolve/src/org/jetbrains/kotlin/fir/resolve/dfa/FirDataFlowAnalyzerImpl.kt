@@ -77,7 +77,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         graphBuilder.exitBlock(block).also(this::passFlow)
     }
 
-    // ----------------------------------- Type operator call -----------------------------------
+    // ----------------------------------- Operator call -----------------------------------
 
     override fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {
         val node = graphBuilder.exitTypeOperatorCall(typeOperatorCall).also { passFlow(it, false) }
@@ -124,6 +124,20 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
             }
 
             node.flow = flow
+        } finally {
+            node.flow.freeze()
+        }
+    }
+
+    override fun exitOperatorCall(operatorCall: FirOperatorCall) {
+        val node = graphBuilder.exitOperatorCall(operatorCall).also { passFlow(it, false) }
+        try {
+            when (operatorCall.operation) {
+                FirOperation.EQ, FirOperation.NOT_EQ -> {
+
+                }
+                else -> {}
+            }
         } finally {
             node.flow.freeze()
         }
@@ -327,7 +341,9 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     }
 
     override fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression) {
-        graphBuilder.exitLeftBinaryOrArgument(binaryLogicExpression)
+        val node = graphBuilder.exitLeftBinaryOrArgument(binaryLogicExpression).also { passFlow(it, false) }
+        val leftOperandVariable = getVariable(node.previousNodes.first().fir)
+        node.flow = logicSystem.approveFactsInsideFlow(Condition(leftOperandVariable, ConditionOperator.Eq, False), node.flow).also { it.freeze() }
     }
 
     override fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression) {

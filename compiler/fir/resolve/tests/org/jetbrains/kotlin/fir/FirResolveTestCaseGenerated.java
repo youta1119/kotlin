@@ -252,6 +252,16 @@ public class FirResolveTestCaseGenerated extends AbstractFirResolveTestCase {
             runTest("compiler/fir/resolve/testData/resolve/dfa/casts.kt");
         }
 
+        @TestMetadata("equalsAndIdentity.kt")
+        public void testEqualsAndIdentity() throws Exception {
+            runTest("compiler/fir/resolve/testData/resolve/dfa/equalsAndIdentity.kt");
+        }
+
+        @TestMetadata("nullability.kt")
+        public void testNullability() throws Exception {
+            runTest("compiler/fir/resolve/testData/resolve/dfa/nullability.kt");
+        }
+
         @TestMetadata("returns.kt")
         public void testReturns() throws Exception {
             runTest("compiler/fir/resolve/testData/resolve/dfa/returns.kt");

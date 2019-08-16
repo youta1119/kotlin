@@ -21,8 +21,9 @@ abstract class FirDataFlowAnalyzer {
     abstract fun enterBlock(block: FirBlock)
     abstract fun exitBlock(block: FirBlock)
 
-    // ----------------------------------- Type operator call -----------------------------------
+    // ----------------------------------- Operator call -----------------------------------
     abstract fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall)
+    abstract fun exitOperatorCall(operatorCall: FirOperatorCall)
 
     // ----------------------------------- Jump -----------------------------------
     abstract fun exitJump(jump: FirJump<*>)

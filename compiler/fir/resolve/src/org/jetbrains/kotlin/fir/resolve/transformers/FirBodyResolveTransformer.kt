@@ -811,12 +811,15 @@ open class FirBodyResolveTransformer(
     }
 
     override fun transformOperatorCall(operatorCall: FirOperatorCall, data: Any?): CompositeTransformResult<FirStatement> {
-        if (operatorCall.operation in FirOperation.BOOLEANS) {
-            return (operatorCall.transformChildren(this, noExpectedType) as FirOperatorCall).also {
+        val result = if (operatorCall.operation in FirOperation.BOOLEANS) {
+            (operatorCall.transformChildren(this, noExpectedType) as FirOperatorCall).also {
                 it.resultType = booleanType
-            }.compose()
-        }
-        return super.transformOperatorCall(operatorCall, data)
+            }
+        } else {
+            super.transformOperatorCall(operatorCall, data).single
+        } as FirOperatorCall
+        dataFlowAnalyzer.exitOperatorCall(result)
+        return result.compose()
     }
 
     // ----------------------- Util functions -----------------------

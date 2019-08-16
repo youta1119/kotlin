@@ -14,7 +14,7 @@ import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
 import org.jetbrains.kotlin.types.model.TypeSystemCommonSuperTypesContext
 
 enum class ConditionValue(val token: String) {
-    True("true"), False("false");
+    True("true"), False("false"), Null("null");
 
     override fun toString(): String {
         return token
@@ -94,7 +94,16 @@ data class FirDataFlowInfo(
         exactType + other.exactType,
         exactNotType + other.exactNotType
     )
+
+    operator fun minus(other: FirDataFlowInfo): FirDataFlowInfo = FirDataFlowInfo(
+        exactType - other.exactType,
+        exactNotType - other.exactNotType
+    )
+
+    val isNotEmpty: Boolean get() = exactType.isNotEmpty() || exactNotType.isNotEmpty()
 }
+
+operator fun FirDataFlowInfo.plus(other: FirDataFlowInfo?): FirDataFlowInfo = other?.let { this + other } ?: this
 
 interface DataFlowInferenceContext : ConeTypeContext, TypeSystemCommonSuperTypesContext {
     fun myCommonSuperType(types: List<ConeKotlinType>): ConeKotlinType? {
@@ -249,8 +258,8 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
     }
 
     fun andForVerifiedFacts(left: Map<DataFlowVariable, FirDataFlowInfo>?, right: Map<DataFlowVariable, FirDataFlowInfo>?): Map<DataFlowVariable, FirDataFlowInfo>? {
-        if (left == null) return right
-        if (right == null) return left
+        if (left.isNullOrEmpty()) return right
+        if (right.isNullOrEmpty()) return left
 
         val map = mutableMapOf<DataFlowVariable, FirDataFlowInfo>()
         for (variable in left.keys.union(right.keys)) {
@@ -262,7 +271,7 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
     }
 
     fun orForVerifiedFacts(left: Map<DataFlowVariable, FirDataFlowInfo>?, right: Map<DataFlowVariable, FirDataFlowInfo>?): Map<DataFlowVariable, FirDataFlowInfo>? {
-        if (left == null || right == null) return null
+        if (left.isNullOrEmpty() || right.isNullOrEmpty()) return null
         val map = mutableMapOf<DataFlowVariable, FirDataFlowInfo>()
         for (variable in left.keys.intersect(right.keys)) {
             val leftInfo = left[variable]!!
@@ -296,10 +305,10 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
         return flow
     }
 
-    fun approveFact(proof: Condition, flow: Flow): Map<DataFlowVariable, FirDataFlowInfo>? {
+    fun approveFact(proof: Condition, flow: Flow): MutableMap<DataFlowVariable, FirDataFlowInfo>? {
         val notApprovedFacts: Set<UnapprovedFirDataFlowInfo> = flow.notApprovedFacts[proof.variable]
         if (notApprovedFacts.isEmpty()) {
-            return emptyMap()
+            return mutableMapOf()
         }
         val newFacts = HashMultimap.create<DataFlowVariable, FirDataFlowInfo>()
         notApprovedFacts.forEach {
@@ -307,6 +316,6 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
                 newFacts.put(it.variable, it.info)
             }
         }
-        return newFacts.asMap().mapValues { (_, infos) -> context.and(infos) }
+        return newFacts.asMap().mapValuesTo(mutableMapOf()) { (_, infos) -> context.and(infos) }
     }
 }

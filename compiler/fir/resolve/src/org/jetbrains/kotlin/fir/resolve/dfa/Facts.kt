@@ -89,7 +89,12 @@ data class UnapprovedFirDataFlowInfo(
 data class FirDataFlowInfo(
     val exactType: Set<ConeKotlinType>,
     val exactNotType: Set<ConeKotlinType>
-)
+) {
+    operator fun plus(other: FirDataFlowInfo): FirDataFlowInfo = FirDataFlowInfo(
+        exactType + other.exactType,
+        exactNotType + other.exactNotType
+    )
+}
 
 interface DataFlowInferenceContext : ConeTypeContext, TypeSystemCommonSuperTypesContext {
     fun myCommonSuperType(types: List<ConeKotlinType>): ConeKotlinType? {
@@ -148,7 +153,10 @@ class Flow(
 
     fun addApprovedFact(variable: DataFlowVariable, info: FirDataFlowInfo): Flow {
         if (isFrozen) return copyForBuilding().addApprovedFact(variable, info)
-        approvedFacts.put(variable, info)
+        approvedFacts.compute(variable) { _, existingInfo ->
+            if (existingInfo == null) info
+            else existingInfo + info
+        }
         return this
     }
 
@@ -184,14 +192,6 @@ class Flow(
         if (isFrozen) return copyForBuilding().removeVariableFromFlow(variable)
         notApprovedFacts.removeAll(variable)
         approvedFacts.remove(variable)
-        return this
-    }
-
-    fun invertFactsForVariable(variable: DataFlowVariable, flow: Flow): Flow {
-        if (isFrozen) return copyForBuilding().invertFactsForVariable(variable, flow)
-        val facts = notApprovedFacts[variable]
-        if (facts.isEmpty()) return this
-        notApprovedFacts.replaceValues(variable, facts.mapTo(mutableSetOf()) { it.invert() })
         return this
     }
 

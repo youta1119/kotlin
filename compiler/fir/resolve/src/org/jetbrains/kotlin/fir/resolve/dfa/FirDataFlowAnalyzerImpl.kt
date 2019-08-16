@@ -81,54 +81,49 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
     override fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {
         val node = graphBuilder.exitTypeOperatorCall(typeOperatorCall).also { passFlow(it, false) }
-
         try {
-            if (typeOperatorCall.operation == FirOperation.IS) {
-                val symbol: FirCallableSymbol<*> = typeOperatorCall.argument.toResolvedCallableSymbol() as? FirCallableSymbol<*> ?: return
-                val type = typeOperatorCall.conversionTypeRef.coneTypeSafe<ConeKotlinType>() ?: return
+            if (typeOperatorCall.operation !in FirOperation.TYPES) return
+            val symbol: FirCallableSymbol<*> = typeOperatorCall.argument.toResolvedCallableSymbol() as? FirCallableSymbol<*> ?: return
+            val type = typeOperatorCall.conversionTypeRef.coneTypeSafe<ConeKotlinType>() ?: return
+            val varVariable = getRealVariable(symbol)
 
-                val expressionVariable = getSyntheticVariable(typeOperatorCall)
-                val varVariable = getRealVariable(symbol)
+            var flow = node.flow
+            when (typeOperatorCall.operation) {
+                FirOperation.IS, FirOperation.NOT_IS -> {
+                    val expressionVariable = getSyntheticVariable(typeOperatorCall)
 
-                var flow = node.flow
-                flow = flow.addNotApprovedFact(
-                    expressionVariable,
-                    UnapprovedFirDataFlowInfo(
-                        ConditionRHS(ConditionOperator.Eq, True), varVariable, FirDataFlowInfo(setOf(type), emptySet())
+                    val trueInfo = FirDataFlowInfo(setOf(type), emptySet())
+                    val falseInfo = FirDataFlowInfo(emptySet(), setOf(type))
+
+                    fun chooseInfo(trueBranch: Boolean) = if ((typeOperatorCall.operation == FirOperation.IS) == trueBranch) trueInfo else falseInfo
+
+                    flow = flow.addNotApprovedFact(
+                        expressionVariable,
+                        UnapprovedFirDataFlowInfo(
+                            ConditionRHS(ConditionOperator.Eq, True), varVariable, chooseInfo(true)
+                        )
                     )
-                )
-                flow = flow.addNotApprovedFact(
-                    expressionVariable,
-                    UnapprovedFirDataFlowInfo(
-                        ConditionRHS(ConditionOperator.Eq, False), varVariable, FirDataFlowInfo(emptySet(), setOf(type))
+
+                    flow = flow.addNotApprovedFact(
+                        expressionVariable,
+                        UnapprovedFirDataFlowInfo(
+                            ConditionRHS(ConditionOperator.Eq, False), varVariable, chooseInfo(false)
+                        )
                     )
-                )
-                node.flow = flow
+                }
+
+                FirOperation.AS -> {
+                    flow = flow.addApprovedFact(varVariable, FirDataFlowInfo(setOf(type), emptySet()))
+                }
+
+                FirOperation.SAFE_AS -> {
+
+                }
+
+                else -> throw IllegalStateException()
             }
 
-            if (typeOperatorCall.operation == FirOperation.NOT_IS) {
-                val symbol: FirCallableSymbol<*> = typeOperatorCall.argument.toResolvedCallableSymbol() as? FirCallableSymbol<*> ?: return
-                val type = typeOperatorCall.conversionTypeRef.coneTypeSafe<ConeKotlinType>() ?: return
-
-                val expressionVariable = getSyntheticVariable(typeOperatorCall)
-                val varVariable = getRealVariable(symbol)
-
-                var flow = node.flow
-                flow = flow.addNotApprovedFact(
-                    expressionVariable,
-                    UnapprovedFirDataFlowInfo(
-                        ConditionRHS(ConditionOperator.Eq, True), varVariable, FirDataFlowInfo(emptySet(), setOf(type))
-                    )
-                )
-                flow = flow.addNotApprovedFact(
-                    expressionVariable,
-                    UnapprovedFirDataFlowInfo(
-                        ConditionRHS(ConditionOperator.Eq, False), varVariable, FirDataFlowInfo(setOf(type), emptySet())
-                    )
-                )
-                node.flow = flow
-            }
-
+            node.flow = flow
         } finally {
             node.flow.freeze()
         }

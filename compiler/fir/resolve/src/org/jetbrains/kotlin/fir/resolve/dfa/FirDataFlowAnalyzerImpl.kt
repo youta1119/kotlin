@@ -35,7 +35,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     private val edges = mutableMapOf<CFGNode<*>, Flow>().withDefault { Flow.EMPTY }
 
     override fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
-        val symbol: FirBasedSymbol<*> = (qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol as? FirBasedSymbol<*> ?: return null
+        val symbol: FirBasedSymbol<*> = qualifiedAccessExpression.resolvedSymbol ?: return null
         val variable = variableStorage[symbol] ?: return null
         val smartCastTypes = graphBuilder.lastNode.flow.approvedFacts(variable)?.exactType ?: return null
         val smartCastType = context.myIntersectTypes(smartCastTypes.toList()) ?: return null
@@ -154,10 +154,11 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
                     when {
                         leftConst?.kind == IrConstKind.Null -> processEqNull(node, rightOperand, operation)
                         rightConst?.kind == IrConstKind.Null -> processEqNull(node, leftOperand, operation)
+                        operation != FirOperation.EQ && operation != FirOperation.IDENTITY -> return
+                        leftConst != null -> processEqWithConst(node, rightOperand)
+                        rightConst != null -> processEqWithConst(node, leftOperand)
                         else -> processEq(node, leftOperand, rightOperand, operation)
                     }
-                }
-                else -> {
                 }
             }
         } finally {
@@ -165,8 +166,31 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         }
     }
 
-    private fun processEq(node: OperatorCallNode, leftOperand: FirExpression, rightOperand: FirExpression, operation: FirOperation) {
+    private fun processEqWithConst(node: OperatorCallNode, operand: FirExpression) {
+        val operandVariables = getRealVariablesForSafeCallChain(operand).takeIf { it.isNotEmpty() } ?: return
+        val expressionVariable = getVariable(node.fir)
+        var flow = node.flow
+        operandVariables.forEach { operandVariable ->
+            flow = flow.addNotApprovedFact(
+                expressionVariable, UnapprovedFirDataFlowInfo(
+                    ConditionRHS(ConditionOperator.Eq, True),
+                    operandVariable,
+                    FirDataFlowInfo(setOf(session.builtinTypes.anyType.coneTypeUnsafe()), emptySet())
+                )
+            )
+        }
+        node.flow = flow
+    }
 
+    private fun processEq(node: OperatorCallNode, leftOperand: FirExpression, rightOperand: FirExpression, operation: FirOperation) {
+        val leftType = leftOperand.typeRef.coneTypeSafe<ConeKotlinType>() ?: return
+        val rightType = rightOperand.typeRef.coneTypeSafe<ConeKotlinType>() ?: return
+        when {
+            leftType.isMarkedNullable && rightType.isMarkedNullable -> return
+            leftType.isMarkedNullable -> processEqWithConst(node, leftOperand)
+            rightType.isMarkedNullable -> processEqWithConst(node, rightOperand)
+        }
+        // TODO: process EQUALITY
     }
 
     private fun processEqNull(node: OperatorCallNode, operand: FirExpression, operation: FirOperation) {
@@ -350,6 +374,8 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         }
     }
 
+    private val FirElement.resolvedSymbol: FirBasedSymbol<*>? get() = this.safeAs<FirResolvable>()?.calleeReference.safeAs<FirResolvedCallableReference>()?.coneSymbol as? FirBasedSymbol<*>
+
     private fun FirFunctionCall.isBooleanNot(): Boolean {
         val symbol = calleeReference.safeAs<FirResolvedCallableReference>()?.coneSymbol as? FirNamedFunctionSymbol ?: return false
         return symbol.callableId == KOTLIN_BOOLEAN_NOT
@@ -489,9 +515,7 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     private fun getRealVariable(symbol: FirBasedSymbol<*>): DataFlowVariable = variableStorage.getOrCreateNewRealVariable(symbol)
 
     private fun getVariable(fir: FirElement): DataFlowVariable {
-        val symbol = fir.safeAs<FirQualifiedAccessExpression>()
-            ?.calleeReference?.safeAs<FirResolvedCallableReference>()
-            ?.coneSymbol as? FirBasedSymbol<*>
+        val symbol = fir.resolvedSymbol
         return if (symbol == null)
             getSyntheticVariable(fir)
         else

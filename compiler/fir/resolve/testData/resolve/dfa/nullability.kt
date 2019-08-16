@@ -67,3 +67,53 @@ fun test_7(q: Q?) {
         q.fdata().fs().length // bad
     }
 }
+
+fun test_8(b: Boolean?) {
+    if (b == true) {
+        b.not()
+    }
+}
+
+fun test_9(a: String, b: String?) {
+    if (a == b) {
+        b.length
+    }
+    b.length
+
+    if (a === b) {
+        b.length
+    }
+    b.length
+
+    if (b == a) {
+        b.length
+    }
+    b.length
+
+    if (b === a) {
+        b.length
+    }
+    b.length
+}
+
+fun test_10(a: String?, b: String?) {
+    if (a == b) {
+        b.length
+    }
+    b.length
+
+    if (a === b) {
+        b.length
+    }
+    b.length
+
+    if (b == a) {
+        b.length
+    }
+    b.length
+
+    if (b === a) {
+        b.length
+    }
+    b.length
+}

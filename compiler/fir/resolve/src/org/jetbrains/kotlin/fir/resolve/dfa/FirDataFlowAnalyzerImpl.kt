@@ -10,7 +10,6 @@ import org.jetbrains.kotlin.fir.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
-import org.jetbrains.kotlin.fir.resolve.calls.FirNamedReferenceWithCandidate
 import org.jetbrains.kotlin.fir.resolve.dfa.ConditionValue.*
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.*
 import org.jetbrains.kotlin.fir.resolve.transformers.FirBodyResolveTransformer
@@ -38,7 +37,8 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     override fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType? {
         val symbol: FirBasedSymbol<*> = (qualifiedAccessExpression.calleeReference as? FirResolvedCallableReference)?.coneSymbol as? FirBasedSymbol<*> ?: return null
         val variable = variableStorage[symbol] ?: return null
-        val smartCastType = graphBuilder.lastNode.flow.approvedFacts(variable)?.exactType ?: return null
+        val smartCastTypes  = graphBuilder.lastNode.flow.approvedFacts(variable)?.exactType ?: return null
+        val smartCastType = context.myIntersectTypes(smartCastTypes.toList()) ?: return null
         val originalType = qualifiedAccessExpression.typeRef.coneTypeSafe<ConeKotlinType>() ?: return null
         return ConeTypeIntersector.intersectTypesFromSmartcasts(context, originalType, smartCastType)
     }
@@ -94,13 +94,13 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
                 flow = flow.addNotApprovedFact(
                     expressionVariable,
                     UnapprovedFirDataFlowInfo(
-                        ConditionRHS(ConditionOperator.Eq, True), varVariable, FirDataFlowInfo(type, null)
+                        ConditionRHS(ConditionOperator.Eq, True), varVariable, FirDataFlowInfo(setOf(type), emptySet())
                     )
                 )
                 flow = flow.addNotApprovedFact(
                     expressionVariable,
                     UnapprovedFirDataFlowInfo(
-                        ConditionRHS(ConditionOperator.Eq, False), varVariable, FirDataFlowInfo(null, type)
+                        ConditionRHS(ConditionOperator.Eq, False), varVariable, FirDataFlowInfo(emptySet(), setOf(type))
                     )
                 )
                 node.flow = flow
@@ -117,13 +117,13 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
                 flow = flow.addNotApprovedFact(
                     expressionVariable,
                     UnapprovedFirDataFlowInfo(
-                        ConditionRHS(ConditionOperator.Eq, True), varVariable, FirDataFlowInfo(null, type)
+                        ConditionRHS(ConditionOperator.Eq, True), varVariable, FirDataFlowInfo(emptySet(), setOf(type))
                     )
                 )
                 flow = flow.addNotApprovedFact(
                     expressionVariable,
                     UnapprovedFirDataFlowInfo(
-                        ConditionRHS(ConditionOperator.Eq, False), varVariable, FirDataFlowInfo(type, null)
+                        ConditionRHS(ConditionOperator.Eq, False), varVariable, FirDataFlowInfo(setOf(type), emptySet())
                     )
                 )
                 node.flow = flow

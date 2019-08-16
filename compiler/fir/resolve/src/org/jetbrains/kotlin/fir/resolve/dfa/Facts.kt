@@ -13,11 +13,6 @@ import org.jetbrains.kotlin.fir.types.render
 import org.jetbrains.kotlin.resolve.calls.NewCommonSuperTypeCalculator
 import org.jetbrains.kotlin.types.model.TypeSystemCommonSuperTypesContext
 
-// TODO: rename
-interface WithLevel {
-    val level: Int
-}
-
 enum class ConditionValue(val token: String) {
     True("true"), False("false");
 
@@ -85,17 +80,19 @@ data class UnapprovedFirDataFlowInfo(
     }
 
     override fun toString(): String {
-        return "$condition -> $variable: ${info.exactType?.render()}, ${info.exactNotType?.render()}"
+        return "$condition -> $variable: ${info.exactType.render()}, ${info.exactNotType.render()}"
     }
+
+    private fun Set<ConeKotlinType>.render(): String = joinToString { it.render() }
 }
 
 data class FirDataFlowInfo(
-    val exactType: ConeKotlinType?,
-    val exactNotType: ConeKotlinType?
+    val exactType: Set<ConeKotlinType>,
+    val exactNotType: Set<ConeKotlinType>
 )
 
 interface DataFlowInferenceContext : ConeTypeContext, TypeSystemCommonSuperTypesContext {
-    private fun myCommonSuperType(types: List<ConeKotlinType>): ConeKotlinType? {
+    fun myCommonSuperType(types: List<ConeKotlinType>): ConeKotlinType? {
         return when (types.size) {
             0 -> null
             1 -> types.first()
@@ -105,7 +102,7 @@ interface DataFlowInferenceContext : ConeTypeContext, TypeSystemCommonSuperTypes
         }
     }
 
-    private fun myIntersectTypes(types: List<ConeKotlinType>): ConeKotlinType? {
+    fun myIntersectTypes(types: List<ConeKotlinType>): ConeKotlinType? {
         return when (types.size) {
             0 -> null
             1 -> types.first()
@@ -120,31 +117,30 @@ interface DataFlowInferenceContext : ConeTypeContext, TypeSystemCommonSuperTypes
         return FirDataFlowInfo(exactType, exactNotType)
     }
 
-    private fun orTypes(types: Collection<ConeKotlinType?>): ConeKotlinType? {
-        if (types.any { it == null }) return null
-        @Suppress("UNCHECKED_CAST")
-        return myCommonSuperType(types as List<ConeKotlinType>)
+    private fun orTypes(types: Collection<Set<ConeKotlinType>>): Set<ConeKotlinType> {
+        if (types.any { it.isEmpty() }) return emptySet()
+        val allTypes = types.flatMapTo(mutableSetOf()) { it }
+        val commonTypes = allTypes.toMutableSet()
+        types.forEach { commonTypes.retainAll(it) }
+        val differentTypes = allTypes - commonTypes
+        myCommonSuperType(differentTypes.toList())?.let { commonTypes += it }
+        return commonTypes
     }
 
     fun and(infos: Collection<FirDataFlowInfo>): FirDataFlowInfo {
         infos.singleOrNull()?.let { return it }
-        val exactType = myIntersectTypes(infos.mapNotNull { it.exactType })
-        val exactNotType = myIntersectTypes(infos.mapNotNull { it.exactNotType })
+        val exactType = infos.flatMapTo(mutableSetOf()) { it.exactType }
+        val exactNotType = infos.flatMapTo(mutableSetOf()) { it.exactNotType }
         return FirDataFlowInfo(exactType, exactNotType)
     }
 }
 
-typealias Level = Int
-
 class Flow(
     val approvedFacts: MutableMap<DataFlowVariable, FirDataFlowInfo> = mutableMapOf(),
     val notApprovedFacts: HashMultimap<DataFlowVariable, UnapprovedFirDataFlowInfo> = HashMultimap.create(),
-    state: State = State.Building
+    private var state: State = State.Building
 ) {
-    var state: State = state
-        private set
-
-    val isFrozen: Boolean get() = state == State.Frozen
+    private val isFrozen: Boolean get() = state == State.Frozen
 
     fun freeze() {
         state = State.Frozen
@@ -226,10 +222,7 @@ class LogicSystem(private val context: DataFlowInferenceContext) {
 
     fun or(storages: Collection<Flow>): Flow {
         storages.singleOrNull()?.let {
-            return when (it.state) {
-                Flow.State.Frozen -> it
-                Flow.State.Building -> it.copy()
-            }
+            return it.copy()
         }
         val approvedFacts = mutableMapOf<DataFlowVariable, FirDataFlowInfo>().apply {
             storages.map { it.approvedFacts.keys }

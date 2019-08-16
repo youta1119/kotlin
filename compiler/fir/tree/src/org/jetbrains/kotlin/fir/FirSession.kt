@@ -9,7 +9,7 @@ import org.jetbrains.kotlin.analyzer.ModuleInfo
 import org.jetbrains.kotlin.fir.types.FirTypeRef
 import org.jetbrains.kotlin.fir.types.impl.FirImplicitAnyTypeRef
 import org.jetbrains.kotlin.fir.types.impl.FirImplicitBooleanTypeRef
-import org.jetbrains.kotlin.fir.types.impl.FirImplicitNullableAnyTypeRef
+import org.jetbrains.kotlin.fir.types.impl.FirImplicitNullableNothingTypeRef
 import org.jetbrains.kotlin.utils.Jsr305State
 import kotlin.properties.ReadOnlyProperty
 import kotlin.reflect.KClass
@@ -45,7 +45,7 @@ abstract class FirSession(val sessionProvider: FirSessionProvider?) {
 class BuiltinTypes {
     val booleanType: FirTypeRef = FirImplicitBooleanTypeRef(null)
     val anyType: FirTypeRef = FirImplicitAnyTypeRef(null)
-    val nullableNothingType: FirTypeRef = FirImplicitNullableAnyTypeRef(null)
+    val nullableNothingType: FirTypeRef = FirImplicitNullableNothingTypeRef(null)
 }
 
 interface FirSessionProvider {

@@ -7,7 +7,7 @@ FILE: equalsAndIdentity.kt
         when () {
             ==(R|<local>/x|, R|<local>/y|) ->  {
                 R|<local>/x|.R|/A.foo|()
-                R|<local>/y|.<Inapplicable(WRONG_RECEIVER): [/A.foo]>#()
+                R|<local>/y|.R|/A.foo|()
             }
             else ->  {
             }
@@ -16,7 +16,7 @@ FILE: equalsAndIdentity.kt
         when () {
             ===(R|<local>/x|, R|<local>/y|) ->  {
                 R|<local>/x|.R|/A.foo|()
-                R|<local>/y|.<Inapplicable(WRONG_RECEIVER): [/A.foo]>#()
+                R|<local>/y|.R|/A.foo|()
             }
             else ->  {
             }
@@ -54,7 +54,7 @@ FILE: equalsAndIdentity.kt
 
         when () {
             ==(R|<local>/x|, R|<local>/y|) ->  {
-                R|<local>/x|.<Inapplicable(WRONG_RECEIVER): [/A.foo]>#()
+                R|<local>/x|.R|/A.foo|()
                 R|<local>/y|.R|/A.foo|()
             }
             else ->  {
@@ -63,7 +63,7 @@ FILE: equalsAndIdentity.kt
 
         when () {
             ===(R|<local>/x|, R|<local>/y|) ->  {
-                R|<local>/x|.<Inapplicable(WRONG_RECEIVER): [/A.foo]>#()
+                R|<local>/x|.R|/A.foo|()
                 R|<local>/y|.R|/A.foo|()
             }
             else ->  {

@@ -294,7 +294,7 @@ open class FirBodyResolveTransformer(
                         it.type, it, anonymousFunction
                     )
                 }
-                var af = super.transformAnonymousFunction(anonymousFunction, data).single as FirAnonymousFunction
+                var af = anonymousFunction
                 val valueParameters =
                     if (resolvedLambdaAtom == null) af.valueParameters
                     else {
@@ -338,8 +338,12 @@ open class FirBodyResolveTransformer(
                     valueParameters = valueParameters,
                     returnTypeRef = (af.returnTypeRef as? FirResolvedTypeRef)
                         ?: resolvedLambdaAtom?.returnType?.let { af.returnTypeRef.resolvedTypeFromPrototype(it) }
-                        ?: af.body?.resultType?.takeIf { af.returnTypeRef is FirImplicitTypeRef }
-                        ?: FirErrorTypeRefImpl(af.psi, "No result type for lambda")
+                        ?: af.returnTypeRef
+                )
+                af = af.transformValueParameters(ImplicitToErrorTypeTransformer, null) as FirAnonymousFunction
+                af = super.transformAnonymousFunction(af, data).single as FirAnonymousFunction
+                af = af.copy(
+                    returnTypeRef = af.body?.resultType ?: FirErrorTypeRefImpl(af.psi, "No result type for lambda")
                 )
                 af.replaceTypeRef(af.constructFunctionalTypeRef(session))
                 af.compose()
@@ -347,6 +351,22 @@ open class FirBodyResolveTransformer(
             else -> {
                 super.transformAnonymousFunction(anonymousFunction, data)
             }
+        }
+    }
+
+    private object ImplicitToErrorTypeTransformer : FirTransformer<Nothing?>() {
+        override fun <E : FirElement> transformElement(element: E, data: Nothing?): CompositeTransformResult<E> {
+            return element.compose()
+        }
+
+        override fun transformValueParameter(valueParameter: FirValueParameter, data: Nothing?): CompositeTransformResult<FirDeclaration> {
+            if (valueParameter.returnTypeRef is FirImplicitTypeRef) {
+                valueParameter.transformReturnTypeRef(
+                    StoreType,
+                    valueParameter.returnTypeRef.resolvedTypeFromPrototype(ConeKotlinErrorType("No type for parameter"))
+                )
+            }
+            return valueParameter.compose()
         }
     }
 

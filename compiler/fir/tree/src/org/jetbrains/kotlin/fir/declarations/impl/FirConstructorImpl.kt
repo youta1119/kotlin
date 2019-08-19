@@ -87,6 +87,11 @@ open class FirConstructorImpl : FirAbstractCallableMember<FirConstructor>, FirCo
         cfgReference.accept(visitor, data)
     }
 
+    override fun <D> transformValueParameters(transformer: FirTransformer<D>, data: D): FirConstructorImpl {
+        valueParameters.transformInplace(transformer, data)
+        return this
+    }
+
     companion object {
         val NAME = Name.special("<init>")
     }

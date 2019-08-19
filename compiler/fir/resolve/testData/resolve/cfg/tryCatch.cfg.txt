@@ -72,7 +72,7 @@
 28:                 Enter when -> 29  |  <- 27
 29:                   Enter when branch condition  -> 30  |  <- 28
 30:                     Access variable R|<local>/b| -> 31  |  <- 29
-31:                     Function call: R|<local>/b|.R?C|kotlin/Boolean.not|() -> 32  |  <- 30
+31:                     Function call: R|<local>/b|.R|kotlin/Boolean.not|() -> 32  |  <- 30
 32:                   Exit when branch condition -> 33, 38  |  <- 31
 33:                     Enter block -> 34  |  <- 32
 34:                       Jump: break@@@[Boolean(true)]  -> 35[DEAD], 63  |  <- 33

@@ -4,25 +4,26 @@
  3:       Enter when branch condition  -> 4  |  <- 2
  4:         Access variable R|<local>/x| -> 5  |  <- 3
  5:         Const: Null(null) -> 6  |  <- 4
- 6:       Exit when branch condition -> 7, 13  |  <- 5
- 7:         Enter block -> 8  |  <- 6
- 8:           Function call: R?C|kotlin/KotlinNullPointerException.KotlinNullPointerException|() -> 9  |  <- 7
- 9:           Throw: throw R|kotlin/KotlinNullPointerException.KotlinNullPointerException|() -> 10[DEAD], 24  |  <- 8
-10:           Stub[DEAD] -> 11  |  <- 9
-11:         Exit block[DEAD] -> 12  |  <- 10
-12:       Exit when branch result[DEAD] -> 19  |  <- 11
-13:       Enter when branch condition "else" -> 14  |  <- 6
-14:       Exit when branch condition -> 15  |  <- 13
-15:         Enter block -> 16  |  <- 14
-16:           Access variable R|<local>/x| -> 17  |  <- 15
-17:         Exit block -> 18  |  <- 16
-18:       Exit when branch result -> 19  |  <- 17
-19:     Exit when -> 20  |  <- 12[DEAD], 18
-20:     Variable declaration: lval y: R|kotlin/Int?| -> 21  |  <- 19
-21:     Access variable R|<local>/y| -> 22  |  <- 20
-22:     Function call: R|<local>/y|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 23  |  <- 21
-23:   Exit block -> 24  |  <- 22
-24: Exit function "test_1" ->   |  <- 9, 23
+ 6:         Operator == -> 7  |  <- 5
+ 7:       Exit when branch condition -> 8, 14  |  <- 6
+ 8:         Enter block -> 9  |  <- 7
+ 9:           Function call: R|kotlin/KotlinNullPointerException.KotlinNullPointerException|() -> 10  |  <- 8
+10:           Throw: throw R|kotlin/KotlinNullPointerException.KotlinNullPointerException|() -> 11[DEAD], 25  |  <- 9
+11:           Stub[DEAD] -> 12  |  <- 10
+12:         Exit block[DEAD] -> 13  |  <- 11
+13:       Exit when branch result[DEAD] -> 20  |  <- 12
+14:       Enter when branch condition "else" -> 15  |  <- 7
+15:       Exit when branch condition -> 16  |  <- 14
+16:         Enter block -> 17  |  <- 15
+17:           Access variable R|<local>/x| -> 18  |  <- 16
+18:         Exit block -> 19  |  <- 17
+19:       Exit when branch result -> 20  |  <- 18
+20:     Exit when -> 21  |  <- 13[DEAD], 19
+21:     Variable declaration: lval y: R|kotlin/Int| -> 22  |  <- 20
+22:     Access variable R|<local>/y| -> 23  |  <- 21
+23:     Function call: R|<local>/y|.R|kotlin/Int.inc|() -> 24  |  <- 22
+24:   Exit block -> 25  |  <- 23
+25: Exit function "test_1" ->   |  <- 10, 24
 
  0: Enter function "test_2" -> 1
  1:   Enter block -> 2  |  <- 0
@@ -30,23 +31,24 @@
  3:       Enter when branch condition  -> 4  |  <- 2
  4:         Access variable R|<local>/x| -> 5  |  <- 3
  5:         Const: Null(null) -> 6  |  <- 4
- 6:       Exit when branch condition -> 7, 11  |  <- 5
- 7:         Enter block -> 8  |  <- 6
- 8:           Access variable R|<local>/x| -> 9  |  <- 7
- 9:         Exit block -> 10  |  <- 8
-10:       Exit when branch result -> 17  |  <- 9
-11:       Enter when branch condition "else" -> 12  |  <- 6
-12:       Exit when branch condition -> 13  |  <- 11
-13:         Enter block -> 14  |  <- 12
-14:           Access variable R|<local>/x| -> 15  |  <- 13
-15:         Exit block -> 16  |  <- 14
-16:       Exit when branch result -> 17  |  <- 15
-17:     Exit when -> 18  |  <- 10, 16
-18:     Variable declaration: lval y: R|kotlin/Int?| -> 19  |  <- 17
-19:     Access variable R|<local>/y| -> 20  |  <- 18
-20:     Function call: R|<local>/y|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 21  |  <- 19
-21:   Exit block -> 22  |  <- 20
-22: Exit function "test_2" ->   |  <- 21
+ 6:         Operator == -> 7  |  <- 5
+ 7:       Exit when branch condition -> 8, 12  |  <- 6
+ 8:         Enter block -> 9  |  <- 7
+ 9:           Access variable R|<local>/x| -> 10  |  <- 8
+10:         Exit block -> 11  |  <- 9
+11:       Exit when branch result -> 18  |  <- 10
+12:       Enter when branch condition "else" -> 13  |  <- 7
+13:       Exit when branch condition -> 14  |  <- 12
+14:         Enter block -> 15  |  <- 13
+15:           Access variable R|<local>/x| -> 16  |  <- 14
+16:         Exit block -> 17  |  <- 15
+17:       Exit when branch result -> 18  |  <- 16
+18:     Exit when -> 19  |  <- 11, 17
+19:     Variable declaration: lval y: R|kotlin/Int?| -> 20  |  <- 18
+20:     Access variable R|<local>/y| -> 21  |  <- 19
+21:     Function call: R|<local>/y|.<Ambiguity: inc, [kotlin/inc, kotlin/inc]>#() -> 22  |  <- 20
+22:   Exit block -> 23  |  <- 21
+23: Exit function "test_2" ->   |  <- 22
 
  0: Enter function "test_3" -> 1
  1:   Enter block -> 2  |  <- 0

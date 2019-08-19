@@ -40,20 +40,20 @@
  1:   Enter block -> 2  |  <- 0
  2:     Const: Int(0) -> 3  |  <- 1
  3:     Const: Int(5) -> 4  |  <- 2
- 4:     Function call: Int(0).R?C|kotlin/Int.rangeTo|(Int(5)) -> 5  |  <- 3
+ 4:     Function call: Int(0).R|kotlin/Int.rangeTo|(Int(5)) -> 5  |  <- 3
  5:     Variable declaration: lval <range>: R|kotlin/ranges/IntRange| -> 6  |  <- 4
  6:     Access variable R|<local>/<range>| -> 7  |  <- 5
- 7:     Function call: R|<local>/<range>|.R?C|kotlin/ranges/IntProgression.iterator|() -> 8  |  <- 6
+ 7:     Function call: R|<local>/<range>|.R|kotlin/ranges/IntProgression.iterator|() -> 8  |  <- 6
  8:     Variable declaration: lval <iterator>: R|kotlin/collections/IntIterator| -> 9  |  <- 7
  9:     Enter while loop -> 10  |  <- 8
 10:       Enter loop condition -> 11  |  <- 9, 23
 11:         Access variable R|<local>/<iterator>| -> 12  |  <- 10
-12:         Function call: R|<local>/<iterator>|.R?C|kotlin/collections/Iterator.hasNext|() -> 13  |  <- 11
+12:         Function call: R|<local>/<iterator>|.R|FakeOverride<kotlin/collections/Iterator.hasNext: R|kotlin/Boolean|>|() -> 13  |  <- 11
 13:       Exit loop condition -> 14, 24  |  <- 12
 14:       Enter loop block -> 15  |  <- 13
 15:         Enter block -> 16  |  <- 14
 16:           Access variable R|<local>/<iterator>| -> 17  |  <- 15
-17:           Function call: R|<local>/<iterator>|.R?C|kotlin/collections/IntIterator.next|() -> 18  |  <- 16
+17:           Function call: R|<local>/<iterator>|.R|kotlin/collections/IntIterator.next|() -> 18  |  <- 16
 18:           Variable declaration: lval i: R|kotlin/Int| -> 19  |  <- 17
 19:           Access variable R|<local>/x| -> 20  |  <- 18
 20:           Type operator: "x is String" -> 21  |  <- 19

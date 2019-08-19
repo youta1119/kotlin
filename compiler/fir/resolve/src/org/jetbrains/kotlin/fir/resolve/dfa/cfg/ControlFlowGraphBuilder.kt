@@ -252,11 +252,13 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         return createBinaryOrExitLeftOperandNode(binaryLogicExpression).also {
             addEdge(previousNode, it)
             lastNodes.push(it)
+            levelCounter++
         }
     }
 
     fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression): BinaryOrExitNode {
         assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.OR)
+        levelCounter--
         return binaryOrExitNodes.pop().also { addNewSimpleNode(it) }
     }
 

@@ -99,6 +99,7 @@ fun CFGNode<*>.render(): String =
                 is LoopExitNode -> "Exit ${fir.type()}loop"
 
                 is QualifiedAccessNode -> "Access variable ${fir.calleeReference.render()}"
+                is OperatorCallNode -> "Operator ${fir.operation.operator}"
                 is TypeOperatorCallNode -> "Type operator: \"${fir.psi?.text?.toString() ?: fir.render()}\""
                 is JumpNode -> "Jump: ${fir.render()}"
                 is StubNode -> "Stub"
@@ -125,9 +126,10 @@ fun CFGNode<*>.render(): String =
                 is BinaryAndEnterNode -> "Enter &&"
                 is BinaryAndExitNode -> "Exit &&"
                 is BinaryOrEnterNode -> "Enter ||"
+                is BinaryOrExitLeftOperandNode -> "Exit left part of ||"
                 is BinaryOrExitNode -> "Exit ||"
 
-                else -> TODO()
+                else -> TODO(this@render.toString())
             }
         )
         if (isDead) {

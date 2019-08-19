@@ -177,7 +177,7 @@ open class FirBodyResolveTransformer(
 
     override fun transformTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall, data: Any?): CompositeTransformResult<FirStatement> {
         val symbolProvider = session.service<FirSymbolProvider>()
-        val resolved = super.transformTypeOperatorCall(typeOperatorCall, data).single
+        val resolved = transformExpression(typeOperatorCall, data).single
         when ((resolved as FirTypeOperatorCall).operation) {
             FirOperation.IS, FirOperation.NOT_IS -> {
                 resolved.resultType = FirResolvedTypeRefImpl(
@@ -246,13 +246,17 @@ open class FirBodyResolveTransformer(
                 } else {
                     transformedCallee
                 }
-                if (result !is FirQualifiedAccessExpression) return result.compose()
-                val typeWithSmartCasts = dataFlowAnalyzer.getTypeUsingSmartcastInfo(result) ?: return result.compose()
-                result.resultType = FirResolvedTypeRefImpl(result.psi, typeWithSmartCasts, result.resultType.annotations)
+                if (result is FirQualifiedAccessExpression) {
+                    dataFlowAnalyzer.getTypeUsingSmartcastInfo(result)?.let { typeWithSmartCasts ->
+                        result.resultType = FirResolvedTypeRefImpl(result.psi, typeWithSmartCasts, result.resultType.annotations)
+                    }
+                }
                 result
             }
         }
-        dataFlowAnalyzer.exitQualifiedAccessExpression(result)
+        if (result is FirQualifiedAccessExpression) {
+            dataFlowAnalyzer.exitQualifiedAccessExpression(result)
+        }
         return result.compose()
     }
 

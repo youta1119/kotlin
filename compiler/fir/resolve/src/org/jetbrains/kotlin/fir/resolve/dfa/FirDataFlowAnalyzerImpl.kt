@@ -359,7 +359,8 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     // ----------------------------------- Resolvable call -----------------------------------
 
     override fun exitQualifiedAccessExpression(qualifiedAccessExpression: FirQualifiedAccessExpression) {
-        graphBuilder.exitQualifiedAccessExpression(qualifiedAccessExpression).also(this::passFlow)
+        val node = graphBuilder.exitQualifiedAccessExpression(qualifiedAccessExpression).also(this::passFlow)
+        node
     }
 
     override fun enterFunctionCall(functionCall: FirFunctionCall) {

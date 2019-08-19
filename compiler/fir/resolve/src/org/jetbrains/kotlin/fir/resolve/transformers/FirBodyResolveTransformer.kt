@@ -712,13 +712,17 @@ open class FirBodyResolveTransformer(
             localScopes.lastOrNull()?.storeDeclaration(variable)
         }
         variable.resolvePhase = transformerPhase
-        dataFlowAnalyzer.exitVariableDeclaration(variable)
+        val graph = dataFlowAnalyzer.exitVariableDeclaration(variable)
+        if (graph != null) {
+            // TODO: add graph to variable
+        }
         return variable.compose()
     }
 
     override fun transformProperty(property: FirProperty, data: Any?): CompositeTransformResult<FirDeclaration> {
         val returnTypeRef = property.returnTypeRef
         if (returnTypeRef !is FirImplicitTypeRef && implicitTypeOnly) return property.compose()
+        dataFlowAnalyzer.enterProperty(property)
         if (returnTypeRef is FirImplicitTypeRef) {
             property.transformReturnTypeRef(StoreType, FirComputingImplicitTypeRef)
         }
@@ -737,6 +741,7 @@ open class FirBodyResolveTransformer(
                 }
             }
             property.resolvePhase = transformerPhase
+            dataFlowAnalyzer.exitProperty(property)
             property.compose()
         }
     }

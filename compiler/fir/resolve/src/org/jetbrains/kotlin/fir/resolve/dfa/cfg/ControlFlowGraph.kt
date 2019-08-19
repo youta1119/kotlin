@@ -7,14 +7,16 @@ package org.jetbrains.kotlin.fir.resolve.dfa.cfg
 
 import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.fir.FirElement
+import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.declarations.FirFunction
+import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.dfa.Condition
 
-class ControlFlowGraph {
+class ControlFlowGraph(val name: String) {
     val nodes = mutableListOf<CFGNode<*>>()
-    lateinit var enterNode: FunctionEnterNode
-    lateinit var exitNode: FunctionExitNode
+    lateinit var enterNode: CFGNode<*>
+    lateinit var exitNode: CFGNode<*>
 }
 
 sealed class CFGNode<out E : FirElement>(val owner: ControlFlowGraph, val level: Int) {
@@ -36,6 +38,11 @@ interface ReturnableNothingNode {
 
 class FunctionEnterNode(owner: ControlFlowGraph, override val fir: FirFunction, level: Int) : CFGNode<FirFunction>(owner, level)
 class FunctionExitNode(owner: ControlFlowGraph, override val fir: FirFunction, level: Int) : CFGNode<FirFunction>(owner, level)
+
+// ----------------------------------- Property -----------------------------------
+
+class PropertyEnterNode(owner: ControlFlowGraph, override val fir: FirProperty, level: Int) : CFGNode<FirProperty>(owner, level)
+class PropertyExitNode(owner: ControlFlowGraph, override val fir: FirProperty, level: Int) : CFGNode<FirProperty>(owner, level)
 
 // ----------------------------------- Block -----------------------------------
 
@@ -135,6 +142,11 @@ class StubNode(owner: ControlFlowGraph, level: Int) : CFGNode<FirStub>(owner, le
 
 class VariableDeclarationNode(owner: ControlFlowGraph, override val fir: FirVariable<*>, level: Int) : CFGNode<FirVariable<*>>(owner, level)
 class VariableAssignmentNode(owner: ControlFlowGraph, override val fir: FirVariableAssignment, level: Int) : CFGNode<FirVariableAssignment>(owner, level)
+
+// ----------------------------------- Other -----------------------------------
+
+class FileEnterNode(owner: ControlFlowGraph, override val fir: FirFile, level: Int) : CFGNode<FirFile>(owner, level)
+class FileExitNode(owner: ControlFlowGraph, override val fir: FirFile, level: Int) : CFGNode<FirFile>(owner, level)
 
 // ----------------------------------- Stub -----------------------------------
 

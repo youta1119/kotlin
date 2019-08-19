@@ -8,6 +8,7 @@ package org.jetbrains.kotlin.fir.resolve.dfa
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirResolvedCallableReference
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
+import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.BodyResolveComponents
 import org.jetbrains.kotlin.fir.resolve.dfa.ConditionValue.*
@@ -58,6 +59,17 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
     override fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
         val graph = graphBuilder.exitNamedFunction(namedFunction)
+        return graph
+    }
+
+    // ----------------------------------- Property -----------------------------------
+
+    override fun enterProperty(property: FirProperty) {
+        graphBuilder.enterProperty(property)
+    }
+
+    override fun exitProperty(property: FirProperty): ControlFlowGraph {
+        val graph = graphBuilder.exitProperty(property)
         return graph
     }
 
@@ -343,17 +355,17 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
     override fun enterFinallyBlock(tryExpression: FirTryExpression) {
         // TODO
-        graphBuilder.enterFinallyBlock(tryExpression)
+        graphBuilder.enterFinallyBlock(tryExpression).also { passFlow(it) }
     }
 
     override fun exitFinallyBlock(tryExpression: FirTryExpression) {
         // TODO
-        graphBuilder.exitFinallyBlock(tryExpression)
+        graphBuilder.exitFinallyBlock(tryExpression).also { passFlow(it) }
     }
 
     override fun exitTryExpression(tryExpression: FirTryExpression) {
         // TODO
-        graphBuilder.exitTryExpression(tryExpression)
+        graphBuilder.exitTryExpression(tryExpression).also { passFlow(it) }
     }
 
     // ----------------------------------- Resolvable call -----------------------------------

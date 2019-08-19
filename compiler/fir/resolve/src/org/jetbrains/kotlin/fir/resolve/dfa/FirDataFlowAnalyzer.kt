@@ -6,6 +6,9 @@
 package org.jetbrains.kotlin.fir.resolve.dfa
 
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
+import org.jetbrains.kotlin.fir.declarations.FirProperty
+import org.jetbrains.kotlin.fir.declarations.impl.FirAbstractCallableMember
+import org.jetbrains.kotlin.fir.declarations.impl.FirMemberPropertyImpl
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraph
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
@@ -14,21 +17,31 @@ abstract class FirDataFlowAnalyzer {
     abstract fun getTypeUsingSmartcastInfo(qualifiedAccessExpression: FirQualifiedAccessExpression): ConeKotlinType?
 
     // ----------------------------------- Named function -----------------------------------
+
     abstract fun enterNamedFunction(namedFunction: FirNamedFunction)
     abstract fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph
 
+    // ----------------------------------- Property -----------------------------------
+
+    abstract fun enterProperty(property: FirProperty)
+    abstract fun exitProperty(property: FirProperty): ControlFlowGraph
+
     // ----------------------------------- Block -----------------------------------
+
     abstract fun enterBlock(block: FirBlock)
     abstract fun exitBlock(block: FirBlock)
 
     // ----------------------------------- Operator call -----------------------------------
+
     abstract fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall)
     abstract fun exitOperatorCall(operatorCall: FirOperatorCall)
 
     // ----------------------------------- Jump -----------------------------------
+
     abstract fun exitJump(jump: FirJump<*>)
 
     // ----------------------------------- When -----------------------------------
+
     abstract fun enterWhenExpression(whenExpression: FirWhenExpression)
     abstract fun enterWhenBranchCondition(whenBranch: FirWhenBranch)
     abstract fun exitWhenBranchCondition(whenBranch: FirWhenBranch)
@@ -36,16 +49,19 @@ abstract class FirDataFlowAnalyzer {
     abstract fun exitWhenExpression(whenExpression: FirWhenExpression)
 
     // ----------------------------------- While Loop -----------------------------------
+
     abstract fun enterWhileLoop(loop: FirLoop)
     abstract fun exitWhileLoopCondition(loop: FirLoop)
     abstract fun exitWhileLoop(loop: FirLoop)
 
     // ----------------------------------- Do while Loop -----------------------------------
+
     abstract fun enterDoWhileLoop(loop: FirLoop)
     abstract fun enterDoWhileLoopCondition(loop: FirLoop)
     abstract fun exitDoWhileLoop(loop: FirLoop)
 
     // ----------------------------------- Try-catch-finally -----------------------------------
+
     abstract fun enterTryExpression(tryExpression: FirTryExpression)
     abstract fun exitTryMainBlock(tryExpression: FirTryExpression)
     abstract fun enterCatchClause(catch: FirCatch)
@@ -55,6 +71,7 @@ abstract class FirDataFlowAnalyzer {
     abstract fun exitTryExpression(tryExpression: FirTryExpression)
 
     // ----------------------------------- Resolvable call -----------------------------------
+
     abstract fun exitQualifiedAccessExpression(qualifiedAccessExpression: FirQualifiedAccessExpression)
     abstract fun enterFunctionCall(functionCall: FirFunctionCall)
     abstract fun exitFunctionCall(functionCall: FirFunctionCall)

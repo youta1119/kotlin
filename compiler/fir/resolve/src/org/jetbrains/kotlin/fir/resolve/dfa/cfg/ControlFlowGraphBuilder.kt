@@ -8,16 +8,18 @@ package org.jetbrains.kotlin.fir.resolve.dfa.cfg
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
+import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.render
 import org.jetbrains.kotlin.fir.resolve.dfa.NodeStorage
 import org.jetbrains.kotlin.fir.resolve.dfa.Stack
+import org.jetbrains.kotlin.fir.resolve.dfa.isEmpty
 import org.jetbrains.kotlin.fir.resolve.dfa.stackOf
 import org.jetbrains.kotlin.fir.resolve.transformers.resultType
 import org.jetbrains.kotlin.fir.types.isNothing
 
 open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
-    private val graphs: Stack<ControlFlowGraph> = stackOf()
+    private val graphs: Stack<ControlFlowGraph> = stackOf(ControlFlowGraph("<DUMP_GRAPH_FOR_ENUMS>"))
     override val graph: ControlFlowGraph get() = graphs.top()
 
     private val lexicalScopes: Stack<Stack<CFGNode<*>>> = stackOf()
@@ -37,6 +39,8 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     private val binaryAndExitNodes: Stack<BinaryAndExitNode> = stackOf()
     private val binaryOrExitNodes: Stack<BinaryOrExitNode> = stackOf()
 
+    private val topLevelVariableExitNodes: MutableMap<FirProperty, PropertyExitNode> = mutableMapOf()
+
     override var levelCounter: Int = 0
 
     val lastNode: CFGNode<*> get() = lastNodes.top()
@@ -44,7 +48,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     // ----------------------------------- Named function -----------------------------------
 
     fun enterNamedFunction(namedFunction: FirNamedFunction): FunctionEnterNode {
-        graphs.push(ControlFlowGraph())
+        graphs.push(ControlFlowGraph(namedFunction.name.asString()))
         lexicalScopes.push(stackOf())
         functionExitNodes.push(createFunctionExitNode(namedFunction))
         return createFunctionEnterNode(namedFunction).also { lastNodes.push(it) }.also { levelCounter++ }
@@ -69,6 +73,28 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     fun exitBlock(block: FirBlock): BlockExitNode {
         levelCounter--
         return createBlockExitNode(block).also { addNewSimpleNode(it) }
+    }
+
+    // ----------------------------------- Property -----------------------------------
+
+    fun enterProperty(property: FirProperty): PropertyEnterNode {
+        graphs.push(ControlFlowGraph("val ${property.name}"))
+        val enterNode = createPropertyEnterNode(property)
+        val exitNode = createPropertyExitNode(property)
+        topLevelVariableExitNodes[property] = exitNode
+        lexicalScopes.push(stackOf(enterNode))
+        graph.enterNode = enterNode
+        graph.exitNode = exitNode
+        levelCounter++
+        return enterNode
+    }
+
+    fun exitProperty(property: FirProperty): ControlFlowGraph {
+        val topLevelVariableExitNode = topLevelVariableExitNodes.remove(property)!!
+        addNewSimpleNode(topLevelVariableExitNode)
+        levelCounter--
+        lexicalScopes.pop()
+        return graphs.pop()
     }
 
     // ----------------------------------- Operator call -----------------------------------
@@ -264,6 +290,8 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
 
     // ----------------------------------- Try-catch-finally -----------------------------------
 
+    private val finallyEnterNodes: Stack<FinallyBlockEnterNode> = stackOf()
+
     fun enterTryExpression(tryExpression: FirTryExpression): TryMainBlockEnterNode {
         catchNodeStorages.push(NodeStorage())
         addNewSimpleNode(createTryExpressionEnterNode(tryExpression))
@@ -280,7 +308,13 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
             addEdge(catchNode, functionExitNodes.top())
         }
         levelCounter++
-        // TODO: add finally
+
+        if (tryExpression.finallyBlock != null) {
+            val finallyEnterNode = createFinallyBlockEnterNode(tryExpression)
+            addEdge(tryNode, finallyEnterNode)
+            finallyEnterNodes.push(finallyEnterNode)
+        }
+
         return tryNode
     }
 
@@ -304,9 +338,18 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         }
     }
 
-    fun enterFinallyBlock(tryExpression: FirTryExpression) { /*TODO*/ }
+    fun enterFinallyBlock(tryExpression: FirTryExpression): FinallyBlockEnterNode {
+        val enterNode = finallyEnterNodes.pop()
+        lastNodes.push(enterNode)
+        return enterNode
+    }
 
-    fun exitFinallyBlock(tryExpression: FirTryExpression) { /*TODO*/ }
+    fun exitFinallyBlock(tryExpression: FirTryExpression): FinallyBlockExitNode {
+        return createFinallyBlockExitNode(tryExpression).also {
+            addEdge(lastNodes.pop(), it)
+            addEdge(it, tryExitNodes.top())
+        }
+    }
 
     fun exitTryExpression(tryExpression: FirTryExpression): TryExpressionExitNode {
         levelCounter--
@@ -364,7 +407,8 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     }
 
     private fun addNodeThatReturnsNothing(node: CFGNode<*>) {
-        addNodeWithJump(node, functionExitNodes.top())
+        val exitNode = if (functionExitNodes.isEmpty) topLevelVariableExitNodes.values.first() else functionExitNodes.top()
+        addNodeWithJump(node, exitNode)
     }
 
     private fun addNodeWithJump(node: CFGNode<*>, targetNode: CFGNode<*>) {

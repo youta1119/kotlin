@@ -5,7 +5,9 @@
 
 package org.jetbrains.kotlin.fir.resolve.dfa.cfg
 
+import org.jetbrains.kotlin.fir.declarations.FirFile
 import org.jetbrains.kotlin.fir.declarations.FirFunction
+import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.expressions.*
 
 abstract class ControlFlowGraphNodeBuilder {
@@ -41,6 +43,10 @@ abstract class ControlFlowGraphNodeBuilder {
     protected fun createBlockEnterNode(fir: FirBlock): BlockEnterNode = BlockEnterNode(graph, fir, levelCounter).also { graph.init(it) }
 
     protected fun createBlockExitNode(fir: FirBlock): BlockExitNode = BlockExitNode(graph, fir, levelCounter).also { graph.init(it) }
+
+    protected fun createPropertyExitNode(fir: FirProperty): PropertyExitNode = PropertyExitNode(graph, fir, levelCounter).also { graph.init(it) }
+
+    protected fun createPropertyEnterNode(fir: FirProperty): PropertyEnterNode = PropertyEnterNode(graph, fir, levelCounter).also { graph.init(it) }
 
     protected fun createFunctionEnterNode(fir: FirFunction): FunctionEnterNode =
         FunctionEnterNode(graph, fir, levelCounter).also {

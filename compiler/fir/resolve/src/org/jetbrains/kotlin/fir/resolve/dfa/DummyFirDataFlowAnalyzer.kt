@@ -6,6 +6,7 @@
 package org.jetbrains.kotlin.fir.resolve.dfa
 
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
+import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraph
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
@@ -19,12 +20,18 @@ class DummyFirDataFlowAnalyzer : FirDataFlowAnalyzer() {
     override fun enterNamedFunction(namedFunction: FirNamedFunction) {}
 
     override fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
-        return ControlFlowGraph()
+        return ControlFlowGraph("<DUMMY>")
     }
 
     override fun enterBlock(block: FirBlock) {}
 
     override fun exitBlock(block: FirBlock) {}
+
+    override fun enterProperty(property: FirProperty) {}
+
+    override fun exitProperty(property: FirProperty): ControlFlowGraph {
+        return ControlFlowGraph("<DUMMY>")
+    }
 
     override fun exitTypeOperatorCall(typeOperatorCall: FirTypeOperatorCall) {}
 

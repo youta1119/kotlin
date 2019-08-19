@@ -6,9 +6,7 @@
 package org.jetbrains.kotlin.fir.resolve.dfa.cfg
 
 import org.jetbrains.kotlin.fir.FirElement
-import org.jetbrains.kotlin.fir.declarations.FirFunction
-import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
-import org.jetbrains.kotlin.fir.declarations.FirProperty
+import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.render
 import org.jetbrains.kotlin.fir.resolve.dfa.NodeStorage
@@ -47,14 +45,21 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
 
     // ----------------------------------- Named function -----------------------------------
 
-    fun enterNamedFunction(namedFunction: FirNamedFunction): FunctionEnterNode {
-        graphs.push(ControlFlowGraph(namedFunction.name.asString()))
+    fun enterFunction(function: FirFunction): FunctionEnterNode {
+        val name = when (function) {
+            is FirNamedFunction -> function.name.asString()
+            is FirPropertyAccessor -> if (function.isGetter) "<getter>" else "<setter>"
+            is FirAnonymousFunction -> "<anonymous>" // TODO: add check to lambda or fun
+            is FirConstructor -> function.name.asString()
+            else -> throw IllegalArgumentException("Unknown function: ${function.render()}")
+        }
+        functionExitNodes.push(createFunctionExitNode(function))
+        graphs.push(ControlFlowGraph(name))
         lexicalScopes.push(stackOf())
-        functionExitNodes.push(createFunctionExitNode(namedFunction))
-        return createFunctionEnterNode(namedFunction).also { lastNodes.push(it) }.also { levelCounter++ }
+        return createFunctionEnterNode(function).also { lastNodes.push(it) }.also { levelCounter++ }
     }
 
-    fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
+    fun exitFunction(namedFunction: FirFunction): ControlFlowGraph {
         levelCounter--
         val exitNode = functionExitNodes.pop()
         addEdge(lastNodes.pop(), exitNode)
@@ -63,6 +68,8 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         lexicalScopes.pop()
         return graphs.pop()
     }
+
+    private val FirFunction.isAnonymous: Boolean get() = this is FirAnonymousFunction
 
     // ----------------------------------- Block -----------------------------------
 

@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.fir.resolve.dfa
 
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirResolvedCallableReference
+import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.expressions.*
@@ -46,19 +47,19 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
 
     // ----------------------------------- Named function -----------------------------------
 
-    override fun enterNamedFunction(namedFunction: FirNamedFunction) {
+    override fun enterFunction(function: FirFunction) {
         variableStorage.reset()
-        graphBuilder.enterNamedFunction(namedFunction).also {
+        graphBuilder.enterFunction(function).also {
             it.flow = Flow()
         }
 
-        for (valueParameter in namedFunction.valueParameters) {
+        for (valueParameter in function.valueParameters) {
             getRealVariable(valueParameter.symbol)
         }
     }
 
-    override fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
-        val graph = graphBuilder.exitNamedFunction(namedFunction)
+    override fun exitFunction(function: FirFunction): ControlFlowGraph {
+        val graph = graphBuilder.exitFunction(function)
         return graph
     }
 

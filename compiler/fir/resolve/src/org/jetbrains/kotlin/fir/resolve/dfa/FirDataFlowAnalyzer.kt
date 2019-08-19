@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.fir.resolve.dfa
 
+import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.declarations.impl.FirAbstractCallableMember
@@ -18,8 +19,8 @@ abstract class FirDataFlowAnalyzer {
 
     // ----------------------------------- Named function -----------------------------------
 
-    abstract fun enterNamedFunction(namedFunction: FirNamedFunction)
-    abstract fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph
+    abstract fun enterFunction(function: FirFunction)
+    abstract fun exitFunction(function: FirFunction): ControlFlowGraph
 
     // ----------------------------------- Property -----------------------------------
 

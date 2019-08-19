@@ -16,7 +16,6 @@ import org.jetbrains.kotlin.fir.references.FirSimpleNamedReference
 import org.jetbrains.kotlin.fir.resolve.*
 import org.jetbrains.kotlin.fir.resolve.calls.*
 import org.jetbrains.kotlin.fir.resolve.dfa.DataFlowInferenceContext
-import org.jetbrains.kotlin.fir.resolve.dfa.DummyFirDataFlowAnalyzer
 import org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzer
 import org.jetbrains.kotlin.fir.resolve.dfa.FirDataFlowAnalyzerImpl
 import org.jetbrains.kotlin.fir.resolve.inference.FirCallCompleter
@@ -563,13 +562,19 @@ open class FirBodyResolveTransformer(
     }
 
     override fun transformAnnotationCall(annotationCall: FirAnnotationCall, data: Any?): CompositeTransformResult<FirStatement> {
+
         return (annotationCall.transformChildren(this, data) as FirStatement).compose()
     }
 
     override fun transformFunction(function: FirFunction, data: Any?): CompositeTransformResult<FirDeclaration> {
         return withScopeCleanup(localScopes) {
             localScopes += FirLocalScope()
-            super.transformFunction(function, data)
+            dataFlowAnalyzer.enterFunction(function)
+            super.transformFunction(function, data).let {
+                val result = it.single
+                val controlFlowGraph = dataFlowAnalyzer.exitFunction(result as FirFunction)
+                result.transform(controlFlowGraphReferenceTransformer, controlFlowGraph)
+            }
         }
     }
 
@@ -596,7 +601,7 @@ open class FirBodyResolveTransformer(
     }
 
     override fun transformNamedFunction(namedFunction: FirNamedFunction, data: Any?): CompositeTransformResult<FirDeclaration> {
-        dataFlowAnalyzer.enterNamedFunction(namedFunction)
+//        dataFlowAnalyzer.enterFunction(namedFunction)
         val returnTypeRef = namedFunction.returnTypeRef
         if ((returnTypeRef !is FirImplicitTypeRef) && implicitTypeOnly) {
             return namedFunction.compose()
@@ -606,15 +611,15 @@ open class FirBodyResolveTransformer(
         }
 
         val receiverTypeRef = namedFunction.receiverTypeRef
-        val result = if (receiverTypeRef != null) {
+        return if (receiverTypeRef != null) {
             withLabelAndReceiverType(namedFunction.name, namedFunction, receiverTypeRef.coneTypeUnsafe()) {
                 transformFunctionWithGivenSignature(namedFunction, returnTypeRef, receiverTypeRef)
             }
         } else {
             transformFunctionWithGivenSignature(namedFunction, returnTypeRef)
         }
-        val controlFlowGraph = dataFlowAnalyzer.exitNamedFunction(namedFunction)
-        return result.single.transform(controlFlowGraphReferenceTransformer, controlFlowGraph)
+//        val controlFlowGraph = dataFlowAnalyzer.exitFunction(namedFunction)
+//        return result.single.transform(controlFlowGraphReferenceTransformer, controlFlowGraph)
     }
 
     override fun transformPropertyAccessor(propertyAccessor: FirPropertyAccessor, data: Any?): CompositeTransformResult<FirDeclaration> {
@@ -712,10 +717,7 @@ open class FirBodyResolveTransformer(
             localScopes.lastOrNull()?.storeDeclaration(variable)
         }
         variable.resolvePhase = transformerPhase
-        val graph = dataFlowAnalyzer.exitVariableDeclaration(variable)
-        if (graph != null) {
-            // TODO: add graph to variable
-        }
+        dataFlowAnalyzer.exitVariableDeclaration(variable)
         return variable.compose()
     }
 

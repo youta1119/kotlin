@@ -5,7 +5,7 @@
 
 package org.jetbrains.kotlin.fir.resolve.dfa
 
-import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
+import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.ControlFlowGraph
@@ -17,9 +17,9 @@ class DummyFirDataFlowAnalyzer : FirDataFlowAnalyzer() {
         return qualifiedAccessExpression.typeRef.coneTypeUnsafe()
     }
 
-    override fun enterNamedFunction(namedFunction: FirNamedFunction) {}
+    override fun enterFunction(function: FirFunction) {}
 
-    override fun exitNamedFunction(namedFunction: FirNamedFunction): ControlFlowGraph {
+    override fun exitFunction(function: FirFunction): ControlFlowGraph {
         return ControlFlowGraph("<DUMMY>")
     }
 

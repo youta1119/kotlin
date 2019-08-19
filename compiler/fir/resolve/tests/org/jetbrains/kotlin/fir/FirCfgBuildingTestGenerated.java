@@ -34,6 +34,11 @@ public class FirCfgBuildingTestGenerated extends AbstractFirCfgBuildingTest {
         runTest("compiler/fir/resolve/testData/resolve/cfg/binaryOperations.kt");
     }
 
+    @TestMetadata("initBlock.kt")
+    public void testInitBlock() throws Exception {
+        runTest("compiler/fir/resolve/testData/resolve/cfg/initBlock.kt");
+    }
+
     @TestMetadata("jumps.kt")
     public void testJumps() throws Exception {
         runTest("compiler/fir/resolve/testData/resolve/cfg/jumps.kt");

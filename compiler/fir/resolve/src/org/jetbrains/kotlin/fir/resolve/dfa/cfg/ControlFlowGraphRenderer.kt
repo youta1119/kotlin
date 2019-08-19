@@ -7,8 +7,10 @@ package org.jetbrains.kotlin.fir.resolve.dfa.cfg
 
 import org.jetbrains.kotlin.fir.FirRenderer
 import org.jetbrains.kotlin.fir.declarations.FirAnonymousFunction
+import org.jetbrains.kotlin.fir.declarations.FirConstructor
 import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
+import org.jetbrains.kotlin.fir.declarations.impl.FirPrimaryConstructorImpl
 import org.jetbrains.kotlin.fir.expressions.FirDoWhileLoop
 import org.jetbrains.kotlin.fir.expressions.FirLoop
 import org.jetbrains.kotlin.fir.expressions.FirWhileLoop
@@ -140,7 +142,8 @@ fun CFGNode<*>.render(): String =
 private fun FirFunction.name(): String = when (this) {
     is FirNamedFunction -> name.asString()
     is FirAnonymousFunction -> "anonymousFunction"
-    else -> TODO()
+    is FirConstructor -> name.asString()
+    else -> TODO(toString())
 }
 
 private fun FirLoop.type(): String = when (this) {

@@ -7,6 +7,7 @@ package org.jetbrains.kotlin.fir.resolve.dfa
 
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.FirResolvedCallableReference
+import org.jetbrains.kotlin.fir.declarations.FirAnonymousInitializer
 import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
@@ -506,12 +507,23 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
     }
 
     // ----------------------------------- Annotations -----------------------------------
+
     override fun enterAnnotationCall(annotationCall: FirAnnotationCall) {
         graphBuilder.enterAnnotationCall(annotationCall).also { passFlow(it) }
     }
 
     override fun exitAnnotationCall(annotationCall: FirAnnotationCall) {
         graphBuilder.exitAnnotationCall(annotationCall).also { passFlow(it) }
+    }
+
+    // ----------------------------------- Init block -----------------------------------
+
+    override fun enterInitBlock(initBlock: FirAnonymousInitializer) {
+        graphBuilder.enterInitBlock(initBlock)
+    }
+
+    override fun exitInitBlock(initBlock: FirAnonymousInitializer) {
+        graphBuilder.enterInitBlock(initBlock).also { passFlow(it) }
     }
 
     // -------------------------------------------------------------------------------------------------------------------------

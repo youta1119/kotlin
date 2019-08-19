@@ -429,6 +429,23 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         }
     }
 
+    // ----------------------------------- Block -----------------------------------
+
+    fun enterInitBlock(initBlock: FirAnonymousInitializer): InitBlockEnterNode {
+        return createInitBlockEnterNode(initBlock).also {
+            lexicalScopes.push(stackOf(it))
+            levelCounter++
+        }
+    }
+
+    fun exitInitBlock(initBlock: FirAnonymousInitializer): InitBlockExitNode {
+        levelCounter--
+        return createInitBlockExitNode(initBlock).also {
+            addNewSimpleNode(it)
+            lexicalScopes.pop()
+        }
+    }
+
     // -------------------------------------------------------------------------------------------------------------------------
 
     private fun CFGNode<*>.markAsDeadIfNecessary() {

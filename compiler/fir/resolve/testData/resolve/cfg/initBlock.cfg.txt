@@ -1,0 +1,2 @@
+0: Enter function "<init>" -> 1
+1: Exit function "<init>" ->   |  <- 0

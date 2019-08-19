@@ -118,8 +118,11 @@ open class FirBodyResolveTransformer(
     ): CompositeTransformResult<FirDeclaration> {
         if (implicitTypeOnly) return anonymousInitializer.compose()
         return withScopeCleanup(localScopes) {
+            dataFlowAnalyzer.enterInitBlock(anonymousInitializer)
             localScopes.addIfNotNull(primaryConstructorParametersScope)
-            super.transformAnonymousInitializer(anonymousInitializer, data)
+            super.transformAnonymousInitializer(anonymousInitializer, data).also {
+                dataFlowAnalyzer.exitInitBlock(it.single as FirAnonymousInitializer)
+            }
         }
     }
 

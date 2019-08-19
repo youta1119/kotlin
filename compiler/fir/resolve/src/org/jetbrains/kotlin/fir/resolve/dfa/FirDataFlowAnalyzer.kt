@@ -5,6 +5,7 @@
 
 package org.jetbrains.kotlin.fir.resolve.dfa
 
+import org.jetbrains.kotlin.fir.declarations.FirAnonymousInitializer
 import org.jetbrains.kotlin.fir.declarations.FirFunction
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.FirProperty
@@ -95,5 +96,9 @@ abstract class FirDataFlowAnalyzer {
     abstract fun enterAnnotationCall(annotationCall: FirAnnotationCall)
     abstract fun exitAnnotationCall(annotationCall: FirAnnotationCall)
 
+    // ----------------------------------- Init block -----------------------------------
+
+    abstract fun enterInitBlock(initBlock: FirAnonymousInitializer)
+    abstract fun exitInitBlock(initBlock: FirAnonymousInitializer)
 }
 

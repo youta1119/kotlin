@@ -100,4 +100,8 @@ class DummyFirDataFlowAnalyzer : FirDataFlowAnalyzer() {
     override fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression) {}
 
     override fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression) {}
+
+    override fun enterAnnotationCall(annotationCall: FirAnnotationCall) {}
+
+    override fun exitAnnotationCall(annotationCall: FirAnnotationCall) {}
 }

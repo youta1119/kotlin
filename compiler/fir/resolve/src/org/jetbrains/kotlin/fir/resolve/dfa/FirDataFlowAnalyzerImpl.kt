@@ -505,13 +505,22 @@ class FirDataFlowAnalyzerImpl(transformer: FirBodyResolveTransformer) : FirDataF
         node.flow = node.flow.copyNotApprovedFacts(booleanExpressionVariable, variable) { it.invert() }.also { it.freeze() }
     }
 
+    // ----------------------------------- Annotations -----------------------------------
+    override fun enterAnnotationCall(annotationCall: FirAnnotationCall) {
+        graphBuilder.enterAnnotationCall(annotationCall).also { passFlow(it) }
+    }
+
+    override fun exitAnnotationCall(annotationCall: FirAnnotationCall) {
+        graphBuilder.exitAnnotationCall(annotationCall).also { passFlow(it) }
+    }
+
+    // -------------------------------------------------------------------------------------------------------------------------
+
     private fun approveFact(variable: DataFlowVariable, value: ConditionValue, flow: Flow): MutableMap<DataFlowVariable, FirDataFlowInfo>? =
         logicSystem.approveFact(Condition(variable, ConditionOperator.Eq, value), flow)
 
     private fun FirBinaryLogicExpression.getVariables(): Pair<DataFlowVariable, DataFlowVariable> =
         getVariable(leftOperand) to getVariable(rightOperand)
-
-    // -------------------------------------------------------------------------------------------------------------------------
 
     private var CFGNode<*>.flow: Flow
         get() = edges.getValue(this)

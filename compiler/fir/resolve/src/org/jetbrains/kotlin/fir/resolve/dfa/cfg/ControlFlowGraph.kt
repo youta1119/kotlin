@@ -145,8 +145,8 @@ class VariableAssignmentNode(owner: ControlFlowGraph, override val fir: FirVaria
 
 // ----------------------------------- Other -----------------------------------
 
-class FileEnterNode(owner: ControlFlowGraph, override val fir: FirFile, level: Int) : CFGNode<FirFile>(owner, level)
-class FileExitNode(owner: ControlFlowGraph, override val fir: FirFile, level: Int) : CFGNode<FirFile>(owner, level)
+class AnnotationEnterNode(owner: ControlFlowGraph, override val fir: FirAnnotationCall, level: Int) : CFGNode<FirAnnotationCall>(owner, level)
+class AnnotationExitNode(owner: ControlFlowGraph, override val fir: FirAnnotationCall, level: Int) : CFGNode<FirAnnotationCall>(owner, level)
 
 // ----------------------------------- Stub -----------------------------------
 

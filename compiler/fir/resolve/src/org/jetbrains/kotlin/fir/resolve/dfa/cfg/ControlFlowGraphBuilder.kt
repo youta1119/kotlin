@@ -20,7 +20,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     private val graphs: Stack<ControlFlowGraph> = stackOf(ControlFlowGraph("<DUMP_GRAPH_FOR_ENUMS>"))
     override val graph: ControlFlowGraph get() = graphs.top()
 
-    private val lexicalScopes: Stack<Stack<CFGNode<*>>> = stackOf()
+    private val lexicalScopes: Stack<Stack<CFGNode<*>>> = stackOf(stackOf())
     private val lastNodes: Stack<CFGNode<*>> get() = lexicalScopes.top()
 
     private val functionExitNodes: NodeStorage<FirFunction, FunctionExitNode> = NodeStorage()
@@ -63,7 +63,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         levelCounter--
         val exitNode = functionExitNodes.pop()
         addEdge(lastNodes.pop(), exitNode)
-        assert(exitNode.fir == namedFunction)
+//        assert(exitNode.fir == namedFunction)
 //        assert(levelCounter == 0)
         lexicalScopes.pop()
         return graphs.pop()
@@ -405,6 +405,28 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
 
     fun exitThrowExceptionNode(throwExpression: FirThrowExpression): ThrowExceptionNode {
         return createThrowExceptionNode(throwExpression).also { addNodeThatReturnsNothing(it) }
+    }
+
+    // ----------------------------------- Annotations -----------------------------------
+
+    fun enterAnnotationCall(annotationCall: FirAnnotationCall): AnnotationEnterNode {
+        return createAnnotationEnterNode(annotationCall).also {
+            if (graphs.size > 1) {
+                addNewSimpleNode(it)
+            } else {
+                lastNodes.push(it)
+            }
+        }
+    }
+
+    fun exitAnnotationCall(annotationCall: FirAnnotationCall): AnnotationExitNode {
+        return createAnnotationExitNode(annotationCall).also {
+            if (graphs.size > 1) {
+                addNewSimpleNode(it)
+            } else {
+                lastNodes.pop()
+            }
+        }
     }
 
     // -------------------------------------------------------------------------------------------------------------------------

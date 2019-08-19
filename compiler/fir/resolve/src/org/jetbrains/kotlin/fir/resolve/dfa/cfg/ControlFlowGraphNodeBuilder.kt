@@ -104,6 +104,12 @@ abstract class ControlFlowGraphNodeBuilder {
     protected fun createVariableAssignmentNode(fir: FirVariableAssignment): VariableAssignmentNode =
         VariableAssignmentNode(graph, fir, levelCounter).also { graph.init(it) }
 
+    protected fun createAnnotationExitNode(fir: FirAnnotationCall): AnnotationExitNode =
+        AnnotationExitNode(graph, fir, levelCounter).also { graph.init(it) }
+
+    protected fun createAnnotationEnterNode(fir: FirAnnotationCall): AnnotationEnterNode =
+        AnnotationEnterNode(graph, fir, levelCounter).also { graph.init(it) }
+
     protected fun createVariableDeclarationNode(fir: FirVariable<*>): VariableDeclarationNode =
         VariableDeclarationNode(graph, fir, levelCounter).also { graph.init(it) }
 

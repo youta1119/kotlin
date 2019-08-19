@@ -562,8 +562,10 @@ open class FirBodyResolveTransformer(
     }
 
     override fun transformAnnotationCall(annotationCall: FirAnnotationCall, data: Any?): CompositeTransformResult<FirStatement> {
-
-        return (annotationCall.transformChildren(this, data) as FirStatement).compose()
+        dataFlowAnalyzer.enterAnnotationCall(annotationCall)
+        return (annotationCall.transformChildren(this, data) as FirAnnotationCall).also {
+            dataFlowAnalyzer.exitAnnotationCall(it)
+        }.compose()
     }
 
     override fun transformFunction(function: FirFunction, data: Any?): CompositeTransformResult<FirDeclaration> {

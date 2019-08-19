@@ -89,5 +89,11 @@ abstract class FirDataFlowAnalyzer {
     abstract fun enterBinaryOr(binaryLogicExpression: FirBinaryLogicExpression)
     abstract fun exitLeftBinaryOrArgument(binaryLogicExpression: FirBinaryLogicExpression)
     abstract fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression)
+
+    // ----------------------------------- Annotations -----------------------------------
+
+    abstract fun enterAnnotationCall(annotationCall: FirAnnotationCall)
+    abstract fun exitAnnotationCall(annotationCall: FirAnnotationCall)
+
 }
 

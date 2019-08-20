@@ -11,6 +11,7 @@ import org.jetbrains.kotlin.fir.declarations.FirMemberFunction
 import org.jetbrains.kotlin.fir.declarations.FirNamedFunction
 import org.jetbrains.kotlin.fir.declarations.impl.FirAbstractFunction
 import org.jetbrains.kotlin.fir.declarations.impl.FirDefaultPropertyAccessor
+import org.jetbrains.kotlin.fir.declarations.impl.FirErrorFunction
 import org.jetbrains.kotlin.fir.symbols.AbstractFirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.CallableId
 import org.jetbrains.kotlin.fir.symbols.ConeFunctionSymbol
@@ -50,8 +51,14 @@ class FirAnonymousFunctionSymbol : AbstractFirBasedSymbol<FirAnonymousFunction>(
         get() = emptyList()
 }
 
-class FirPropertyAccessorSymbol() : AbstractFirBasedSymbol<FirAbstractFunction>(), ConeFunctionSymbol {
+class FirPropertyAccessorSymbol : AbstractFirBasedSymbol<FirAbstractFunction>(), ConeFunctionSymbol {
     override val callableId: CallableId = CallableId(FqName("property"), Name.identifier("accessor"))
+    override val parameters: List<ConeKotlinType>
+        get() = emptyList()
+}
+
+class FirErrorFunctionSymbol : AbstractFirBasedSymbol<FirErrorFunction>(), ConeFunctionSymbol {
+    override val callableId: CallableId = CallableId(FqName("error"), Name.identifier("function"))
     override val parameters: List<ConeKotlinType>
         get() = emptyList()
 }

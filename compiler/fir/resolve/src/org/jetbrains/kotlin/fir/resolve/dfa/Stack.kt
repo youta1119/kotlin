@@ -7,6 +7,8 @@ package org.jetbrains.kotlin.fir.resolve.dfa
 
 import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.resolve.dfa.cfg.CFGNode
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
+import org.jetbrains.kotlin.fir.symbols.FirSymbolOwner
 
 interface Stack<T> {
     val size: Int
@@ -50,6 +52,28 @@ class NodeStorage<T : FirElement, N : CFGNode<T>> : Stack<N> {
     }
 
     operator fun get(key: T): N {
+        return map[key]!!
+    }
+}
+
+class SymbolBasedNodeStorage<T, N : CFGNode<T>> : Stack<N> where T : FirElement {
+    private val stack: Stack<N> = stackOf()
+    private val map: MutableMap<FirBasedSymbol<*>, N> = mutableMapOf()
+
+    override val size: Int get() = stack.size
+
+    override fun top(): N = stack.top()
+
+    override fun pop(): N = stack.pop().also {
+        map.remove((it.fir as FirSymbolOwner<*>).symbol)
+    }
+
+    override fun push(value: N) {
+        stack.push(value)
+        map[(value.fir as FirSymbolOwner<*>).symbol] = value
+    }
+
+    operator fun get(key: FirBasedSymbol<*>): N {
         return map[key]!!
     }
 }

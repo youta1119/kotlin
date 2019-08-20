@@ -12,14 +12,19 @@ import org.jetbrains.kotlin.fir.VisitedSupertype
 import org.jetbrains.kotlin.fir.expressions.impl.FirUnknownTypeExpression
 import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
 import org.jetbrains.kotlin.fir.references.FirEmptyControlFlowGraphReference
+import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
+import org.jetbrains.kotlin.fir.symbols.FirSymbolOwner
+import org.jetbrains.kotlin.fir.symbols.impl.FirAnonymousFunctionSymbol
 import org.jetbrains.kotlin.fir.types.FirTypeRef
 import org.jetbrains.kotlin.fir.visitors.FirVisitor
 
 abstract class FirAnonymousFunction(
     final override val session: FirSession,
     psi: PsiElement?
-) : @VisitedSupertype FirFunction, FirUnknownTypeExpression(psi), FirTypedDeclaration, FirLabeledElement {
+) : @VisitedSupertype FirFunction, FirUnknownTypeExpression(psi), FirTypedDeclaration, FirLabeledElement, FirSymbolOwner<FirAnonymousFunction> {
     abstract val receiverTypeRef: FirTypeRef?
+
+    abstract override val symbol: FirAnonymousFunctionSymbol
 
     final override var cfgReference: FirControlFlowGraphReference = FirEmptyControlFlowGraphReference()
 

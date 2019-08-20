@@ -9,11 +9,9 @@ import org.jetbrains.kotlin.fir.FirElement
 import org.jetbrains.kotlin.fir.declarations.*
 import org.jetbrains.kotlin.fir.expressions.*
 import org.jetbrains.kotlin.fir.render
-import org.jetbrains.kotlin.fir.resolve.dfa.NodeStorage
-import org.jetbrains.kotlin.fir.resolve.dfa.Stack
-import org.jetbrains.kotlin.fir.resolve.dfa.isEmpty
-import org.jetbrains.kotlin.fir.resolve.dfa.stackOf
+import org.jetbrains.kotlin.fir.resolve.dfa.*
 import org.jetbrains.kotlin.fir.resolve.transformers.resultType
+import org.jetbrains.kotlin.fir.symbols.FirSymbolOwner
 import org.jetbrains.kotlin.fir.types.isNothing
 
 open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
@@ -23,7 +21,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     private val lexicalScopes: Stack<Stack<CFGNode<*>>> = stackOf(stackOf())
     private val lastNodes: Stack<CFGNode<*>> get() = lexicalScopes.top()
 
-    private val functionExitNodes: NodeStorage<FirFunction, FunctionExitNode> = NodeStorage()
+    private val functionExitNodes: SymbolBasedNodeStorage<FirFunction, FunctionExitNode> = SymbolBasedNodeStorage()
 
     private val whenExitNodes: NodeStorage<FirWhenExpression, WhenExitNode> = NodeStorage()
 
@@ -119,7 +117,10 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     fun exitJump(jump: FirJump<*>): JumpNode {
         val node = createJumpNode(jump)
         val nextNode = when (jump) {
-            is FirReturnExpression -> functionExitNodes[jump.target.labeledElement]
+            is FirReturnExpression -> {
+                val targetSymbol = (jump.target.labeledElement as FirSymbolOwner<*>).symbol
+                functionExitNodes[targetSymbol]
+            }
             is FirContinueExpression -> loopEnterNodes[jump.target.labeledElement]
             is FirBreakExpression -> loopExitNodes[jump.target.labeledElement]
             else -> throw IllegalArgumentException("Unknown jump type: ${jump.render()}")

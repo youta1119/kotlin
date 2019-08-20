@@ -6,10 +6,14 @@
 package org.jetbrains.kotlin.fir.symbols.impl
 
 import org.jetbrains.kotlin.fir.declarations.*
+import org.jetbrains.kotlin.fir.declarations.impl.FirDefaultPropertyAccessor
+import org.jetbrains.kotlin.fir.symbols.AbstractFirBasedSymbol
 import org.jetbrains.kotlin.fir.symbols.CallableId
 import org.jetbrains.kotlin.fir.symbols.ConeFunctionSymbol
 import org.jetbrains.kotlin.fir.symbols.ConePropertySymbol
 import org.jetbrains.kotlin.fir.types.ConeKotlinType
+import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.Name
 
 sealed class FirFunctionSymbol<D : FirMemberFunction<D>>(
     override val callableId: CallableId
@@ -33,3 +37,11 @@ class FirAccessorSymbol(
     callableId: CallableId,
     val accessorId: CallableId
 ) : ConePropertySymbol, FirFunctionSymbol<FirNamedFunction>(callableId)
+
+class FirDefaultPropertyAccessorSymbol : AbstractFirBasedSymbol<FirDefaultPropertyAccessor>()
+
+class FirAnonymousFunctionSymbol : AbstractFirBasedSymbol<FirAnonymousFunction>(), ConeFunctionSymbol {
+    override val callableId: CallableId = CallableId(FqName("anonymous"), Name.identifier("function"))
+    override val parameters: List<ConeKotlinType>
+        get() = emptyList()
+}

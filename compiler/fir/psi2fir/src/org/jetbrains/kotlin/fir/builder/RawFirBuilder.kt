@@ -543,7 +543,7 @@ class RawFirBuilder(session: FirSession, val stubMode: Boolean) : BaseFirBuilder
             }
             val receiverType = function.receiverTypeReference.convertSafe<FirTypeRef>()
             val firFunction = if (function.name == null) {
-                FirAnonymousFunctionImpl(session, function, returnType, receiverType)
+                FirAnonymousFunctionImpl(session, function, returnType, receiverType, FirAnonymousFunctionSymbol())
             } else {
 
                 FirMemberFunctionImpl(
@@ -583,7 +583,7 @@ class RawFirBuilder(session: FirSession, val stubMode: Boolean) : BaseFirBuilder
             val literal = expression.functionLiteral
             val returnType = FirImplicitTypeRefImpl(literal)
             val receiverType = FirImplicitTypeRefImpl(literal)
-            return FirAnonymousFunctionImpl(session, literal, returnType, receiverType).apply {
+            return FirAnonymousFunctionImpl(session, literal, returnType, receiverType, FirAnonymousFunctionSymbol()).apply {
                 context.firFunctions += this
                 var destructuringBlock: FirExpression? = null
                 for (valueParameter in literal.valueParameters) {

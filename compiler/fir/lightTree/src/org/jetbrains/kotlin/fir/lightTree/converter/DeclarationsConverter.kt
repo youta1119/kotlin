@@ -971,7 +971,7 @@ class DeclarationsConverter(
         val parentNode = functionDeclaration.getParent()
         val isLocal = !(parentNode?.tokenType == KT_FILE || parentNode?.tokenType == CLASS_BODY)
         val firFunction = if (identifier == null) {
-            FirAnonymousFunctionImpl(session, null, returnType!!, receiverType)
+            FirAnonymousFunctionImpl(session, null, returnType!!, receiverType, FirAnonymousFunctionSymbol())
         } else {
             val functionName = identifier.nameAsSafeName()
             FirMemberFunctionImpl(

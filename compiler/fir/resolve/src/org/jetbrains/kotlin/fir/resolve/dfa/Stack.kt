@@ -51,8 +51,8 @@ class NodeStorage<T : FirElement, N : CFGNode<T>> : Stack<N> {
         map[value.fir] = value
     }
 
-    operator fun get(key: T): N {
-        return map[key]!!
+    operator fun get(key: T): N? {
+        return map[key]
     }
 }
 
@@ -73,8 +73,8 @@ class SymbolBasedNodeStorage<T, N : CFGNode<T>> : Stack<N> where T : FirElement 
         map[(value.fir as FirSymbolOwner<*>).symbol] = value
     }
 
-    operator fun get(key: FirBasedSymbol<*>): N {
-        return map[key]!!
+    operator fun get(key: FirBasedSymbol<*>): N? {
+        return map[key]
     }
 }
 

@@ -125,6 +125,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
             is FirBreakExpression -> loopExitNodes[jump.target.labeledElement]
             else -> throw IllegalArgumentException("Unknown jump type: ${jump.render()}")
         }
+
         addNodeWithJump(node, nextNode)
         return node
     }
@@ -335,7 +336,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     }
 
     fun enterCatchClause(catch: FirCatch): CatchClauseEnterNode {
-        return catchNodeStorage[catch].also { lastNodes.push(it) }.also { levelCounter++ }
+        return catchNodeStorage[catch]!!.also { lastNodes.push(it) }.also { levelCounter++ }
     }
 
     fun exitCatchClause(catch: FirCatch): CatchClauseExitNode {
@@ -458,9 +459,11 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         addNodeWithJump(node, exitNode)
     }
 
-    private fun addNodeWithJump(node: CFGNode<*>, targetNode: CFGNode<*>) {
+    private fun addNodeWithJump(node: CFGNode<*>, targetNode: CFGNode<*>?) {
         addEdge(lastNodes.pop(), node)
-        addEdge(node, targetNode)
+        if (targetNode != null) {
+            addEdge(node, targetNode)
+        }
         val stub = createStubNode()
         addEdge(node, stub)
         lastNodes.push(stub)

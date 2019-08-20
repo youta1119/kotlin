@@ -13,6 +13,8 @@ import org.jetbrains.kotlin.fir.declarations.FirValueParameter
 import org.jetbrains.kotlin.fir.expressions.FirBlock
 import org.jetbrains.kotlin.fir.references.FirControlFlowGraphReference
 import org.jetbrains.kotlin.fir.references.FirEmptyControlFlowGraphReference
+import org.jetbrains.kotlin.fir.symbols.FirSymbolOwner
+import org.jetbrains.kotlin.fir.symbols.impl.FirPropertyAccessorSymbol
 import org.jetbrains.kotlin.fir.transformInplace
 import org.jetbrains.kotlin.fir.transformSingle
 import org.jetbrains.kotlin.fir.visitors.FirTransformer
@@ -20,8 +22,13 @@ import org.jetbrains.kotlin.fir.visitors.FirVisitor
 
 abstract class FirAbstractFunction(
     session: FirSession,
-    psi: PsiElement?
-) : FirAbstractAnnotatedDeclaration(session, psi), FirFunction {
+    psi: PsiElement?,
+    final override val symbol: FirPropertyAccessorSymbol = FirPropertyAccessorSymbol()
+) : FirAbstractAnnotatedDeclaration(session, psi), FirFunction, FirSymbolOwner<FirAbstractFunction> {
+    init {
+        symbol.bind(this)
+    }
+
     final override val valueParameters = mutableListOf<FirValueParameter>()
 
     final override var body: FirBlock? = null

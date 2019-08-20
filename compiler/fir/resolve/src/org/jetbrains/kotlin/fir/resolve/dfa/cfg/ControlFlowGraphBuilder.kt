@@ -204,7 +204,7 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
         val loopBlockExitNode = createLoopBlockExitNode(loop)
         addEdge(lastNodes.pop(), loopBlockExitNode)
         val conditionEnterNode = lastNodes.pop()
-        require(conditionEnterNode is LoopConditionEnterNode)
+        require(conditionEnterNode is LoopConditionEnterNode) { loop.render() }
         addEdge(loopBlockExitNode, conditionEnterNode, propagateDeadness = false)
         lastNodes.push(loopExitNodes.pop())
         levelCounter--
@@ -294,7 +294,11 @@ open class ControlFlowGraphBuilder : ControlFlowGraphNodeBuilder() {
     fun exitBinaryOr(binaryLogicExpression: FirBinaryLogicExpression): BinaryOrExitNode {
         assert(binaryLogicExpression.kind == FirBinaryLogicExpression.OperationKind.OR)
         levelCounter--
-        return binaryOrExitNodes.pop().also { addNewSimpleNode(it) }
+        return binaryOrExitNodes.pop().also {
+            addEdge(lastNodes.pop(), it)
+            addEdge(lastNodes.pop(), it)
+            lastNodes.push(it)
+        }
     }
 
     // ----------------------------------- Try-catch-finally -----------------------------------

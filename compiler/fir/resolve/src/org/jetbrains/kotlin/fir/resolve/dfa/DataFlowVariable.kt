@@ -8,8 +8,10 @@ package org.jetbrains.kotlin.fir.resolve.dfa
 import com.google.common.collect.LinkedHashMultimap
 import com.google.common.collect.Multimap
 import org.jetbrains.kotlin.fir.FirElement
+import org.jetbrains.kotlin.fir.FirSession
 import org.jetbrains.kotlin.fir.declarations.FirTypedDeclaration
 import org.jetbrains.kotlin.fir.expressions.FirExpression
+import org.jetbrains.kotlin.fir.resolve.dfa.cfg.FirStub
 import org.jetbrains.kotlin.fir.resolve.transformers.resultType
 import org.jetbrains.kotlin.fir.symbols.FirBasedSymbol
 import org.jetbrains.kotlin.fir.types.FirTypeRef
@@ -28,7 +30,7 @@ data class DataFlowVariable(
     }
 }
 
-class DataFlowVariableStorage {
+class DataFlowVariableStorage(private val session: FirSession) {
     private val dfi2FirMap: Multimap<DataFlowVariable, FirElement> = LinkedHashMultimap.create()
     private val fir2DfiMap: MutableMap<FirElement, DataFlowVariable> = mutableMapOf()
     private var counter: Int = 1
@@ -76,11 +78,12 @@ class DataFlowVariableStorage {
         fir2DfiMap.clear()
         counter = 1
     }
-}
 
-private val FirElement.type: FirTypeRef
-    get() = when (this) {
-        is FirExpression -> this.resultType
-        is FirTypedDeclaration -> this.returnTypeRef
-        else -> TODO()
-    }
+    private val FirElement.type: FirTypeRef
+        get() = when (this) {
+            is FirExpression -> this.resultType
+            is FirTypedDeclaration -> this.returnTypeRef
+            is FirStub -> session.builtinTypes.nothingType
+            else -> TODO(toString())
+        }
+}

@@ -12,8 +12,10 @@ import org.jetbrains.kotlin.backend.jvm.intrinsics.JavaClassProperty
 import org.jetbrains.kotlin.backend.jvm.lower.MultifileFacadeFileEntry
 import org.jetbrains.kotlin.backend.jvm.lower.constantValue
 import org.jetbrains.kotlin.backend.jvm.lower.inlineclasses.unboxInlineClass
-import org.jetbrains.kotlin.codegen.*
 import org.jetbrains.kotlin.codegen.AsmUtil.*
+import org.jetbrains.kotlin.codegen.BaseExpressionCodegen
+import org.jetbrains.kotlin.codegen.CallGenerator
+import org.jetbrains.kotlin.codegen.StackValue
 import org.jetbrains.kotlin.codegen.coroutines.INVOKE_SUSPEND_METHOD_NAME
 import org.jetbrains.kotlin.codegen.inline.*
 import org.jetbrains.kotlin.codegen.inline.ReifiedTypeInliner.Companion.putNeedClassReificationMarker
@@ -40,6 +42,7 @@ import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 import org.jetbrains.kotlin.resolve.jvm.AsmTypes
 import org.jetbrains.kotlin.resolve.jvm.AsmTypes.OBJECT_TYPE
 import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodParameterKind
+import org.jetbrains.kotlin.resolve.jvm.jvmSignature.JvmMethodSignature
 import org.jetbrains.kotlin.utils.addToStdlib.firstIsInstanceOrNull
 import org.jetbrains.kotlin.utils.addToStdlib.safeAs
 import org.jetbrains.kotlin.utils.keysToMap
@@ -99,6 +102,7 @@ class VariableInfo(val declaration: IrVariable, val index: Int, val type: Type, 
 
 class ExpressionCodegen(
     val irFunction: IrFunction,
+    val signature: JvmMethodSignature,
     override val frameMap: IrFrameMap,
     val mv: InstructionAdapter,
     val classCodegen: ClassCodegen,
@@ -177,7 +181,7 @@ class ExpressionCodegen(
             if (irFunction.origin != JvmLoweredDeclarationOrigin.CLASS_STATIC_INITIALIZER) {
                 irFunction.markLineNumber(startOffset = irFunction is IrConstructor && irFunction.isPrimary)
             }
-            val returnType = methodSignatureMapper.mapReturnType(irFunction)
+            val returnType = signature.returnType
             val returnIrType = if (irFunction !is IrConstructor) irFunction.returnType else context.irBuiltIns.unitType
             result.coerce(returnType, returnIrType).materialize()
             mv.areturn(returnType)
@@ -556,8 +560,7 @@ class ExpressionCodegen(
                 ?: error("Unsupported IrReturnTarget: $returnTarget")
         //TODO: should be owner != irFunction
         val isNonLocalReturn =
-            methodSignatureMapper.mapFunctionName(owner, OwnerKind.IMPLEMENTATION) !=
-                    methodSignatureMapper.mapFunctionName(irFunction, OwnerKind.IMPLEMENTATION)
+            methodSignatureMapper.mapFunctionName(owner) != methodSignatureMapper.mapFunctionName(irFunction)
         if (isNonLocalReturn && state.isInlineDisabled) {
             //TODO: state.diagnostics.report(Errors.NON_LOCAL_RETURN_IN_DISABLED_INLINE.on(expression))
             genThrow(
@@ -568,7 +571,7 @@ class ExpressionCodegen(
         }
 
         val target = data.findBlock<ReturnableBlockInfo> { it.returnSymbol == expression.returnTargetSymbol }
-        val returnType = methodSignatureMapper.mapReturnType(owner)
+        val returnType = if (owner == irFunction) signature.returnType else methodSignatureMapper.mapReturnType(owner)
         val afterReturnLabel = Label()
         expression.value.accept(this, data).coerce(returnType, owner.returnType).materialize()
         generateFinallyBlocksIfNeeded(returnType, afterReturnLabel, data, target)

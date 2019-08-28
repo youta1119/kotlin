@@ -5,7 +5,6 @@
 
 package org.jetbrains.kotlin.daemon.experimental.integration
 
-import junit.framework.Assert
 import junit.framework.TestCase
 import kotlinx.coroutines.*
 import org.jetbrains.kotlin.cli.AbstractCliTest
@@ -281,12 +280,12 @@ class CompilerDaemonTest : KotlinIntegrationTestBase() {
 
         for (assertArgValue in allAssetionsArgs) {
             withDaemonJvmOptionsSetTo(assertArgValue) {
-                Assert.assertEquals(assertArgValue, assertionsJvmArgs())
+                assertEquals(assertArgValue, assertionsJvmArgs())
             }
         }
 
         withDaemonJvmOptionsSetTo(null) {
-            Assert.assertEquals("-ea", assertionsJvmArgs())
+            assertEquals("-ea", assertionsJvmArgs())
         }
     }
 

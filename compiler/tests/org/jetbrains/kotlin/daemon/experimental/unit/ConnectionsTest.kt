@@ -241,7 +241,7 @@ class ConnectionsTest : KotlinIntegrationTestBase() {
         { daemons -> daemons[0].daemon },
         { d -> d.getDaemonInfo() },
         { d -> d.registerClient(generateClient()) },
-        { d -> -1 },
+        { _ -> -1 },
         1.takeIf { shouldCheckNumber },
         extraAction
     )

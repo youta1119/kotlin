@@ -36,15 +36,6 @@ class KotlinNativeCompilation(
     private val project: Project
         get() = target.project
 
-    // A collection containing all source sets used by this compilation
-    // (taking into account dependencies between source sets). Used by both compilation
-    // and linking tasks. Unlike kotlinSourceSets, includes dependency source sets.
-    // TODO: Move into the compilation task when the linking task does klib linking instead of compilation.
-    internal val allSources: MutableSet<SourceDirectorySet> = mutableSetOf()
-
-    // TODO: Move into the compilation task when the linking task does klib linking instead of compilation.
-    internal val commonSources: ConfigurableFileCollection = project.files()
-
     var friendCompilationName: String? = null
 
     internal val friendCompilation: KotlinNativeCompilation?
@@ -107,7 +98,11 @@ class KotlinNativeCompilation(
         get() = lowerCamelCaseName(target.disambiguationClassifier, compilationName, "binaries")
 
     override fun addSourcesToCompileTask(sourceSet: KotlinSourceSet, addAsCommonSources: Lazy<Boolean>) {
-        allSources.add(sourceSet.kotlin)
-        commonSources.from(project.files(Callable { if (addAsCommonSources.value) sourceSet.kotlin else emptyList<Any>() }))
+        with(compileKotlinTask) {
+            allSources.add(sourceSet.kotlin)
+            commonSources.from(
+                project.files(Callable { if (addAsCommonSources.value) sourceSet.kotlin else emptyList<Any>() })
+            )
+        }
     }
 }

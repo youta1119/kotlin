@@ -10,8 +10,10 @@ import groovy.lang.Closure
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
 import org.gradle.api.artifacts.*
+import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.FileCollection
 import org.gradle.api.file.FileTree
+import org.gradle.api.file.SourceDirectorySet
 import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.*
 import org.gradle.api.tasks.compile.AbstractCompile
@@ -251,15 +253,20 @@ open class KotlinNativeCompile : AbstractKotlinNativeCompile<KotlinCommonOptions
     override val baseName: String
         get() = if (compilation.isMainCompilation) project.name else compilation.name
 
+    // A collection containing all source sets used by this compilation
+    // (taking into account dependencies between source sets). Used by both compilation
+    // and linking tasks. Unlike kotlinSourceSets, includes dependency source sets.
+    @Internal     // Already taken into account by the getSources() method.
+    val allSources: MutableSet<SourceDirectorySet> = mutableSetOf()
+
+    @InputFiles
+    val commonSources: ConfigurableFileCollection = project.files()
+
     // Inputs and outputs.
     // region Sources.
     @InputFiles
     @SkipWhenEmpty
-    override fun getSource(): FileTree = project.files(compilation.allSources).asFileTree
-
-    private val commonSources: FileCollection
-        // Already taken into account in getSources method.
-        get() = project.files(compilation.commonSources).asFileTree
+    override fun getSource(): FileTree = project.files(allSources).asFileTree
 
     private val friendModule: FileCollection?
         get() = compilation.friendCompilation?.output?.allOutputs

@@ -166,15 +166,10 @@ class KtSimpleNameReference(expression: KtSimpleNameExpression) : KtSimpleRefere
 
         val newExpression = expression.changeQualifiedName(
             fqName.quoteIfNeeded().let {
-                if (expression.getParentOfType<KtElement>(
-                        true,
-                        KtDotQualifiedExpression::class.java,
-                        KtUserType::class.java
-                    ) == null || shorteningMode == ShorteningMode.NO_SHORTENING
-                )
+                if (shorteningMode == ShorteningMode.NO_SHORTENING)
                     it
                 else
-                    it.withRootPrefix()
+                    it.withRootPrefixIfNeeded(expression)
             },
             targetElement
         )

@@ -12,7 +12,7 @@ import org.jetbrains.kotlin.descriptors.CallableDescriptor
 import org.jetbrains.kotlin.idea.completion.isArtificialImportAliasedDescriptor
 import org.jetbrains.kotlin.idea.core.ShortenReferences
 import org.jetbrains.kotlin.idea.core.completion.DeclarationLookupObject
-import org.jetbrains.kotlin.idea.core.withRootPrefix
+import org.jetbrains.kotlin.idea.core.withRootPrefixIfNeeded
 import org.jetbrains.kotlin.idea.imports.importableFqName
 import org.jetbrains.kotlin.idea.util.CallType
 import org.jetbrains.kotlin.idea.util.ImportInsertHelper
@@ -49,7 +49,7 @@ abstract class KotlinCallableInsertHandler(val callType: CallType<*>) : BaseDecl
                 context.document.replaceString(
                     context.startOffset,
                     context.tailOffset,
-                    fqName.withRootPrefix().render() + " "
+                    fqName.withRootPrefixIfNeeded().render() + " "
                 ) // insert space after for correct parsing
 
                 psiDocumentManager.commitAllDocuments()

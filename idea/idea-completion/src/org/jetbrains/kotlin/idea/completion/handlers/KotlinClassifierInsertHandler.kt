@@ -19,7 +19,9 @@ import org.jetbrains.kotlin.idea.core.ShortenReferences
 import org.jetbrains.kotlin.idea.core.completion.DeclarationLookupObject
 import org.jetbrains.kotlin.idea.util.CallTypeAndReceiver
 import org.jetbrains.kotlin.idea.util.IdeDescriptorRenderers
+import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.FqNameUnsafe
+import org.jetbrains.kotlin.name.parentOrNull
 import org.jetbrains.kotlin.psi.KtFile
 import org.jetbrains.kotlin.psi.KtNameReferenceExpression
 import org.jetbrains.kotlin.renderer.render
@@ -66,7 +68,12 @@ object KotlinClassifierInsertHandler : BaseDeclarationInsertHandler() {
                     "$;val v:"  // if we have no reference in the current context we have a more complicated prefix to get one
                 }
                 val tempSuffix = ".xxx" // we add "xxx" after dot because of KT-9606
-                val qualifierNameWithRootPrefix = ROOT_PREFIX_WITH_DOT + qualifiedName
+                val qualifierNameWithRootPrefix = qualifiedName.let {
+                    if (FqName(it).parentOrNull()?.isRoot == false)
+                        ROOT_PREFIX_WITH_DOT + it
+                    else
+                        it
+                }
                 document.replaceString(startOffset, context.tailOffset, tempPrefix + qualifierNameWithRootPrefix + tempSuffix)
 
                 psiDocumentManager.commitAllDocuments()

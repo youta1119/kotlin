@@ -44,6 +44,11 @@ public class BasicCompletionHandlerTestGenerated extends AbstractBasicCompletion
         runTest("idea/idea-completion/testData/handlers/basic/ClassNameForMethodWithPackageConflict.kt");
     }
 
+    @TestMetadata("ClassNameForMethodWithPackageConflict2.kt")
+    public void testClassNameForMethodWithPackageConflict2() throws Exception {
+        runTest("idea/idea-completion/testData/handlers/basic/ClassNameForMethodWithPackageConflict2.kt");
+    }
+
     @TestMetadata("ClassNameWithPackageConflict.kt")
     public void testClassNameWithPackageConflict() throws Exception {
         runTest("idea/idea-completion/testData/handlers/basic/ClassNameWithPackageConflict.kt");

@@ -17,6 +17,7 @@ import org.jetbrains.kotlin.idea.resolve.frontendService
 import org.jetbrains.kotlin.idea.util.getImplicitReceiversWithInstanceToExpression
 import org.jetbrains.kotlin.idea.util.getResolutionScope
 import org.jetbrains.kotlin.name.FqName
+import org.jetbrains.kotlin.name.parentOrNull
 import org.jetbrains.kotlin.psi.*
 import org.jetbrains.kotlin.psi.psiUtil.*
 import org.jetbrains.kotlin.resolve.BindingContext
@@ -158,7 +159,14 @@ fun FqName.quoteSegmentsIfNeeded(): String {
 }
 
 fun FqName.quoteIfNeeded() = FqName(quoteSegmentsIfNeeded())
-fun FqName.withRootPrefix() = FqName(QualifiedExpressionResolver.ROOT_PREFIX_WITH_DOT + asString())
+
+fun FqName.withRootPrefixIfNeeded(targetElement: KtElement? = null) =
+    if (parentOrNull()?.isRoot == false && targetElement?.canAddRootPrefix() != false)
+        FqName(QualifiedExpressionResolver.ROOT_PREFIX_WITH_DOT + asString())
+    else
+        this
+
+fun KtElement.canAddRootPrefix(): Boolean = getParentOfTypes2<KtImportDirective, KtPackageDirective>() == null
 
 fun isEnumCompanionPropertyWithEntryConflict(element: PsiElement, expectedName: String): Boolean {
     if (element !is KtProperty) return false
